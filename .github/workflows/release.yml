@@ -1,0 +1,65 @@
+name: Release
+
+# Run from the Actions tab with the new version number (for example 0.2.0). Before running it,
+# merge a change that sets fables-core/VERSION and adds a "## 0.2.0" section to CHANGELOG.md.
+# The tests run first; if any fails, no tag or release is made.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, without the v (for example 0.2.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  tests:
+    uses: ./.github/workflows/ci.yml
+    with:
+      strict: true
+
+  release:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the version, changelog and tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [ "$(cat fables-core/VERSION)" = "$VERSION" ] || { echo "::error::fables-core/VERSION says $(cat fables-core/VERSION), not $VERSION"; exit 1; }
+          grep -q "^## $VERSION\$" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $VERSION' section"; exit 1; }
+          if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q .; then echo "::error::v$VERSION already exists"; exit 1; fi
+      - name: Package the core and write release notes
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          zip -qr fables-core.zip fables-core
+          awk -v v="## $VERSION" '$0 == v {on=1; next} on && /^## / {exit} on {print}' CHANGELOG.md > notes.md
+          cat notes.md
+      - name: Tag and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: gh release create "v$VERSION" fables-core.zip --target "$GITHUB_SHA" --title "FablesCore $VERSION" --notes-file notes.md
+
+  # Optional: tell each game right away instead of waiting for its weekly check. Needs a
+  # FABLES_NOTIFY_TOKEN secret (see docs/UPDATING.md); without it this job does nothing.
+  notify:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the update check in each registered game
+        env:
+          GH_TOKEN: ${{ secrets.FABLES_NOTIFY_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "No FABLES_NOTIFY_TOKEN secret, so games will pick this release up at their next weekly check."
+            exit 0
+          fi
+          for repo in $(jq -r '.games[] | select(.active) | .repo' registry.json); do
+            echo "Starting the update check in $repo"
+            gh workflow run update-fables-core.yml --repo "$repo" || echo "::warning::Could not start the update in $repo"
+          done

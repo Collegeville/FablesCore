@@ -1,0 +1,83 @@
+name: Update FablesCore
+
+# Copy this file into a game repo at .github/workflows/update-fables-core.yml.
+# Once a week (and whenever you run it from the Actions tab, or FablesCore's release starts it)
+# it checks for a newer FablesCore release. If there is one, it replaces the game's vendored
+# copy and opens a pull request. Nothing changes in the game until you merge that pull request.
+#
+# It needs no secrets: FablesCore is public, and the pull request is opened with this repo's own
+# token. One setting is needed once: Settings > Actions > General > Workflow permissions >
+# "Allow GitHub Actions to create and approve pull requests".
+on:
+  schedule:
+    - cron: '0 14 * * 1' # Mondays, 14:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  # Where this game keeps its copy of the core. DataFables would use site/fables-core.
+  CORE_DIR: fables-core
+  CORE_REPO: Collegeville/FablesCore
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for a newer release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest=$(gh release view --repo "$CORE_REPO" --json tagName --jq .tagName)
+          latest=${latest#v}
+          current=$(cat "$CORE_DIR/VERSION" 2>/dev/null || echo 0.0.0)
+          newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -1)
+          echo "Game has $current, latest release is $latest"
+          if [ "$latest" = "$current" ] || [ "$newest" != "$latest" ]; then
+            echo "Up to date."
+            exit 0
+          fi
+          branch="fables-core-v$latest"
+          if git ls-remote --heads origin "$branch" | grep -q .; then
+            echo "A pull request branch for v$latest already exists."
+            exit 0
+          fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+      - name: Replace the vendored core and open a pull request
+        if: steps.check.outputs.latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.check.outputs.latest }}
+          CURRENT: ${{ steps.check.outputs.current }}
+          BRANCH: ${{ steps.check.outputs.branch }}
+        run: |
+          gh release download "v$LATEST" --repo "$CORE_REPO" --pattern fables-core.zip
+          rm -rf "$CORE_DIR"
+          mkdir -p "$(dirname "$CORE_DIR")"
+          unzip -q fables-core.zip -d unpacked
+          mv unpacked/fables-core "$CORE_DIR"
+          rm -rf unpacked fables-core.zip
+          notes=$(gh release view "v$LATEST" --repo "$CORE_REPO" --json body --jq .body)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A "$CORE_DIR"
+          git commit -m "Update FablesCore from $CURRENT to $LATEST"
+          git push origin "$BRANCH"
+          {
+            echo "This pull request updates the game's copy of FablesCore from $CURRENT to $LATEST."
+            echo
+            echo "Before merging, open the game and play a puzzle. Look for **Breaking** below: it means this game needs its own changes too."
+            echo
+            echo "## What changed in FablesCore $LATEST"
+            echo
+            echo "$notes"
+          } > body.md
+          gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BRANCH" \
+            --title "Update FablesCore to $LATEST" --body-file body.md

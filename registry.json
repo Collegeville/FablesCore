@@ -1,0 +1,6 @@
+{
+  "about": "Game repos that carry a vendored copy of FablesCore. Each checks weekly for new releases on its own; when the optional FABLES_NOTIFY_TOKEN secret is set, a release also starts the check right away in every game marked active. coreDir is where the game keeps its copy.",
+  "games": [
+    { "repo": "Collegeville/DataFables", "coreDir": "site/fables-core", "active": false, "note": "Not migrated onto FablesCore yet." }
+  ]
+}

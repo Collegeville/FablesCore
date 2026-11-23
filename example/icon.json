@@ -1,0 +1,13 @@
+{
+  "color": "#5b3fb0",
+  "accent": "#f59e0b",
+  "out": "icons",
+  "alt": "ExampleFables icon: five rising bars, with the fourth bar out of step",
+  "symbol": [
+    { "rect": [0.20, 0.60, 0.10, 0.18], "fill": "paper" },
+    { "rect": [0.33, 0.50, 0.10, 0.28], "fill": "paper" },
+    { "rect": [0.46, 0.40, 0.10, 0.38], "fill": "paper" },
+    { "rect": [0.59, 0.22, 0.10, 0.56], "fill": "accent" },
+    { "rect": [0.72, 0.20, 0.10, 0.58], "fill": "paper" }
+  ]
+}

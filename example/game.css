@@ -1,0 +1,3 @@
+/* ExampleFables: the only styles this game adds to FablesCore. */
+.ex-sequence { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; padding: 0; list-style: none; }
+.ex-hint { margin: 10px 0 0; color: var(--muted); font-size: 0.88rem; }

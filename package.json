@@ -1,0 +1,23 @@
+{
+  "name": "fables-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FablesCore: the shared framework for the Fables games",
+  "license": "MIT",
+  "author": "Michael A. Heroux",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:visual": "playwright test",
+    "baselines": "playwright test --update-snapshots",
+    "bank": "node example/tools/make-bank.js",
+    "icon": "node tools/make-icon.js example/icon.json",
+    "vendor-example": "node tools/vendor.js example"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.11.0",
+    "@playwright/test": "1.56.1"
+  }
+}

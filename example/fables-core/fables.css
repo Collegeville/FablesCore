@@ -1,0 +1,276 @@
+/* FablesCore shared styles. © 2026 Michael A. Heroux. MIT License.
+   The palette and type follow DataFables. Each game sets only --game (and optionally --game-dark),
+   from the `color` and `colorDark` settings it passes to Fables.start. */
+
+:root {
+  --paper: #faf7f0;
+  --surface: #ffffff;
+  --ink: #1f2a37;
+  --muted: #5b6573;
+  --line: #ddd6c8;
+  --good: #15803d;
+  --good-soft: #dcfce7;
+  --miss: #92400e;
+  --miss-soft: #fef3c7;
+  --lost: #b42318;
+  --lost-soft: #fde8e6;
+  --radius: 10px;
+  --serif: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: light dark;
+}
+
+body.fables { --accent: var(--game, #0e7c86); }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14181d;
+    --surface: #1c2229;
+    --ink: #e6e9ed;
+    --muted: #9aa4b0;
+    --line: #313a44;
+    --good: #4ade80;
+    --good-soft: #14321f;
+    --miss: #fbbf24;
+    --miss-soft: #3a2e12;
+    --lost: #f87171;
+    --lost-soft: #3b1d1d;
+  }
+  body.fables { --accent: var(--game-dark, var(--game, #4fc3cc)); }
+}
+
+* { box-sizing: border-box; }
+
+body.fables {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.fables a { color: var(--accent); }
+.fables :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Shell ------------------------------------------------------------------ */
+
+.fables-masthead,
+.fables-tabs,
+.fables-main,
+.fables-footer { max-width: 760px; margin: 0 auto; }
+
+.fables-masthead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.fables-logo { width: 40px; height: 40px; border-radius: 9px; flex: none; }
+.fables-masthead h1 { margin: 0; font: 700 1.6rem/1.1 var(--serif); letter-spacing: 0.01em; }
+.fables-masthead h1 a { color: inherit; text-decoration: none; }
+.fables-tagline { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
+
+.fables-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px 0; }
+.fables-tabs a {
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.fables-tabs a[aria-current] { color: var(--ink); border-bottom-color: var(--accent); }
+
+.fables-main { padding: 12px 16px 32px; }
+.fables-main h2 { margin: 18px 0 8px; font: 600 1.2rem/1.2 var(--serif); }
+
+.fables-footer {
+  padding: 16px 16px 28px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+.fables-footer p { margin: 0; }
+.fables-footer a { color: inherit; }
+
+.fables-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.fables-notice { color: var(--muted); font-size: 0.92rem; }
+
+/* Puzzle header ------------------------------------------------------------ */
+
+.fables-puzzle-head { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 0 12px; }
+.fables-kicker { grid-column: 1 / -1; margin: 4px 0 0; color: var(--muted); font-size: 0.82rem; }
+.fables-puzzle-head h2 { margin: 4px 0 10px; }
+.fables-pips { display: flex; gap: 6px; padding-top: 10px; grid-column: 2; grid-row: 2; }
+.fables-pip { width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 50%; }
+.fables-pip.hit { background: var(--good); border-color: var(--good); }
+.fables-pip.near { background: var(--miss); border-color: var(--miss); }
+.fables-pip.miss { background: var(--muted); border-color: var(--muted); }
+
+.fables-puzzle { margin-top: 4px; }
+
+/* Unlimited picker --------------------------------------------------------- */
+
+.fables-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+.fables-picker select { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
+
+/* Feedback: the result area ----------------------------------------------- */
+/* Never color alone: every state also has an icon and a sentence. */
+
+.fables-result { margin-top: 16px; }
+.fables-result:focus { outline: none; }
+.fables-result:empty { display: none; }
+
+.fables-verdict {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font: 700 1.5rem/1.15 var(--serif);
+}
+.fables-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  color: #fff;
+  font: 700 1rem/1 system-ui, sans-serif;
+}
+
+.fables-result.is-solved,
+.fables-result.is-lost,
+.fables-result.is-miss {
+  padding: 14px 16px;
+  border-left: 5px solid;
+  border-radius: var(--radius);
+}
+.fables-result.is-solved { border-color: var(--good); background: var(--good-soft); }
+.fables-result.is-solved .fables-icon { background: var(--good); }
+.fables-result.is-lost { border-color: var(--lost); background: var(--lost-soft); }
+.fables-result.is-lost .fables-icon { background: var(--lost); }
+
+/* A miss is calm: smaller type, amber, and it says where the player stands. */
+.fables-result.is-miss { border-color: var(--miss); background: var(--miss-soft); }
+.fables-result.is-miss .fables-verdict { font: 600 1rem/1.3 system-ui, sans-serif; }
+.fables-result.is-miss .fables-icon { background: var(--miss); width: 1.4em; height: 1.4em; font-size: 0.9rem; }
+
+@media (prefers-color-scheme: dark) {
+  .fables-icon { color: #111; }
+}
+
+.fables-streak { margin: 8px 0 0; font-weight: 600; }
+.fables-explanation { margin: 10px 0 0; }
+.fables-moral { margin: 10px 0 0; font: italic 1.05rem/1.4 var(--serif); }
+.fables-moral span { font-style: normal; font-weight: 700; }
+
+/* The moment: a short pop on success, a gentle slide on a miss. */
+.fables-result.fables-enter.is-solved { animation: fables-pop 360ms cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+.fables-result.fables-enter.is-solved .fables-icon { animation: fables-spin-in 420ms ease-out; }
+.fables-result.fables-enter.is-lost,
+.fables-result.fables-enter.is-miss { animation: fables-slide 220ms ease-out; }
+
+@keyframes fables-pop { from { transform: scale(0.94); opacity: 0.4; } to { transform: none; opacity: 1; } }
+@keyframes fables-spin-in { from { transform: scale(0.3) rotate(-90deg); } to { transform: none; } }
+@keyframes fables-slide { from { transform: translateY(-4px); opacity: 0.5; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fables-result.fables-enter,
+  .fables-result.fables-enter .fables-icon { animation: none !important; }
+}
+
+/* Sharing ---------------------------------------------------------------- */
+
+.fables-share { margin-top: 14px; }
+.fables-share-text {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: 0.9rem/1.5 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.fables-share-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fables-copied { color: var(--ink); font-size: 0.88rem; font-weight: 600; }
+
+.fables-after { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 14px 0 0; font-size: 0.9rem; }
+.fables-report { color: var(--muted) !important; font-size: 0.8rem; }
+
+/* Buttons and choices (games may use these) ------------------------------ */
+
+.fables-button {
+  padding: 9px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--paper);
+  font: 600 0.95rem/1.2 system-ui, sans-serif;
+  cursor: pointer;
+}
+.fables-button.secondary { background: transparent; color: var(--ink); border-color: var(--line); }
+.fables-button:disabled { opacity: 0.5; cursor: default; }
+
+.fables-choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.fables-choice {
+  min-width: 3.2em;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: 600 1.15rem/1 var(--mono);
+  cursor: pointer;
+}
+.fables-choice:hover:not(:disabled) { border-color: var(--accent); }
+.fables-choice.tried { text-decoration: line-through; color: var(--muted); }
+.fables-choice.is-answer { border: 2px solid var(--good); background: var(--good-soft); color: var(--ink); text-decoration: none; }
+.fables-choice:disabled { cursor: default; }
+
+/* Stats and Help ------------------------------------------------------------ */
+
+.fables-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.fables-tile {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+.fables-tile-value { font: 700 1.3rem/1.1 var(--serif); }
+.fables-tile-label { color: var(--muted); font-size: 0.75rem; }
+.fables-dist { display: grid; gap: 6px; margin: 12px 0; padding: 0; list-style: none; font-size: 0.88rem; }
+.fables-dist li { display: grid; grid-template-columns: 1.2em 1fr 2em; align-items: center; gap: 8px; }
+.fables-bar { display: block; height: 10px; border-radius: 4px; background: var(--accent); }
+.fables-help p, .fables-help li { max-width: 62ch; }
+.fables-empty { padding: 12px 0; }
+
+@media (max-width: 480px) {
+  .fables-masthead h1 { font-size: 1.4rem; }
+  .fables-tiles { grid-template-columns: repeat(2, 1fr); }
+  .fables-verdict { font-size: 1.3rem; }
+}

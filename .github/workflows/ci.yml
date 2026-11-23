@@ -1,0 +1,61 @@
+name: Tests
+
+# Runs on every pull request and push to main. The Release workflow also calls it with
+# strict set, so a release is never tagged unless every test passes against saved baselines.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+    inputs:
+      strict:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  behavior:
+    name: Behavior tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+  browser:
+    name: Visual, accessibility and motion tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Until the Linux baselines exist (the first time the repo is on GitHub), screenshots are
+      # taken but not compared; the accessibility and behavior checks still run in full.
+      - name: Run the browser tests
+        env:
+          STRICT: ${{ inputs.strict || false }}
+        run: |
+          if [ -d test/visual/baselines/linux ]; then
+            npx playwright test
+          elif [ "$STRICT" = "true" ]; then
+            echo "::error::No Linux screenshot baselines yet. Run 'Update visual baselines' from the Actions tab and merge its pull request first. See docs/TESTING.md."
+            exit 1
+          else
+            echo "::warning::No Linux screenshot baselines yet, so screenshots were not compared. Run 'Update visual baselines' from the Actions tab once. See docs/TESTING.md."
+            npx playwright test --update-snapshots
+          fi
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 14
