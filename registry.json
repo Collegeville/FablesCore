@@ -12,6 +12,11 @@
       "active": true
     },
     {
+      "repo": "Collegeville/TestFables",
+      "coreDir": "fables-core",
+      "active": true
+    },
+    {
       "repo": "Collegeville/DataFables",
       "coreDir": "site/fables-core",
       "active": true
