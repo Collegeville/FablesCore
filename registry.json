@@ -17,6 +17,11 @@
       "active": true
     },
     {
+      "repo": "Collegeville/UDXFables",
+      "coreDir": "fables-core",
+      "active": true
+    },
+    {
       "repo": "Collegeville/DataFables",
       "coreDir": "site/fables-core",
       "active": true
