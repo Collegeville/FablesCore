@@ -9,8 +9,7 @@
     {
       "repo": "Collegeville/DataFables",
       "coreDir": "site/fables-core",
-      "active": false,
-      "note": "Not migrated onto FablesCore yet."
+      "active": true
     }
   ]
 }
