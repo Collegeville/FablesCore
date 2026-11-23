@@ -143,6 +143,7 @@ Puzzles from a provider are checked one at a time as they load, with the same ru
 | Option | Does |
 | --- | --- |
 | `weeklyRamp: false` | For a game without the Monday-to-Saturday ramp yet: no Sunday-capstone or climb rules, and the kicker shows just the weekday |
+| `weeklyRamp: { from: 'YYYY-MM-DD' }` | The ramp starts on that Monday; earlier days are treated as `weeklyRamp: false`. For a game that adds the ramp after it has players |
 | `archive: { days: 60 }` | Adds an **Archive** tab listing past days. A past day opens with `?archive=YYYY-MM-DD` as practice: it is recorded, but never changes the streak |
 | `unlimitedLevels: 'run'`, `runLevels: { levels: 5, perLevel: 3 }` | Unlimited levels rise with the run (solves in a row): every three solves goes up a level, and a miss starts over. Replaces the concept and level picker with a run banner, and Stats shows current and best run |
 

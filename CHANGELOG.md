@@ -2,6 +2,11 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.4.0
+
+- **A weekly ramp that starts on a date:** `weeklyRamp: { from: 'YYYY-MM-DD' }` (a Monday). Days from then on follow the ramp rules and show "Monday · level 1 of 6" and "Sunday capstone"; earlier days are checked and labeled without it. Help says when the ramp starts. `validateBank(bank, { ramp })` takes the same date. For DataFables, whose ramp starts after days already published.
+- **Fix:** serial numbers are checked to increase with the date for every game, not only games with a ramp.
+
 ## 0.3.1
 
 - **Fix:** Daily stats (played, solved, the guess chart) count only puzzles played on their own day. Archive practice no longer inflates them, matching the streak and DataFables' long-standing rule.

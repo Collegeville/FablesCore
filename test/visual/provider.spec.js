@@ -100,3 +100,12 @@ test('a shared link opens an Unlimited puzzle or one part of a day through the p
   await page.goto(at('2026-11-25', '&p=pv-3b'));
   await expect(page.locator('.fables-kicker')).toHaveText(/^#3a · /); // part b is locked until a is done
 });
+
+test('a ramp that starts on a date labels only the days from then on', async ({ page }) => {
+  await open(page, at('2026-11-29', '&ramp=2026-11-30'));
+  await expect(page.locator('.fables-kicker')).toHaveText('#7a · Nov 29 · Find · Sunday');
+  await page.goto(at('2026-12-01', '&ramp=2026-11-30'));
+  await expect(page.locator('.fables-kicker')).toHaveText('#9a · Dec 1 · Find · Tuesday · level 2 of 6');
+  await page.getByRole('link', { name: 'Help', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'How the week works' })).toBeVisible();
+});
