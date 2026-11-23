@@ -20,7 +20,7 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --update-snapshots
+      - run: npx playwright test --update-snapshots=all
       - name: Open a pull request with the new baselines
         env:
           GH_TOKEN: ${{ github.token }}
