@@ -1,0 +1,43 @@
+name: README change reminder
+
+# The Games page on collegeville.github.io has a paragraph on how the Fables games are set up,
+# written from this README. When the README changes on main, open an issue there (or comment on
+# the open one) so that paragraph gets reviewed. Needs a SITE_ISSUES_TOKEN secret; without it
+# this does nothing.
+on:
+  push:
+    branches: [main]
+    paths: [README.md]
+
+permissions: {}
+
+jobs:
+  remind:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Open or update the reminder issue
+        env:
+          GH_TOKEN: ${{ secrets.SITE_ISSUES_TOKEN }}
+          SITE_REPO: Collegeville/collegeville.github.io
+          TITLE: 'FablesCore README changed: review the Games page paragraph'
+          COMPARE_URL: ${{ github.event.compare }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "No SITE_ISSUES_TOKEN secret, so no reminder was sent."
+            exit 0
+          fi
+          body="The FablesCore README changed in ${SHA:0:7}.
+
+          - Commit: $COMMIT_URL
+          - Changes in this push: $COMPARE_URL
+
+          Please review the paragraph on how the Fables games are set up, on the Games page (\`games.html\`, right after the \"Why Games? The Cognitive Gym\" section). It is written from the FablesCore README and may need updating."
+          number=$(gh issue list --repo "$SITE_REPO" --state open --search "\"$TITLE\" in:title" --json number,title \
+            --jq "map(select(.title == env.TITLE)) | .[0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$SITE_REPO" --body "$body"
+          else
+            gh issue create --repo "$SITE_REPO" --title "$TITLE" --body "$body"
+          fi
