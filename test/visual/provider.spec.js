@@ -52,6 +52,7 @@ test('the Archive lists past days and plays them as practice, outside the streak
   await page.locator('.fables-archive a').first().click();
   await expect(page.locator('.fables-practice')).toContainText('Practice: Nov 25');
   await expect(page.locator('.fables-tabs [aria-current]')).toHaveText(['Archive']);
+  await expect(page.getByRole('link', { name: 'Back to today' })).toHaveAttribute('href', /provider\/index\.html\?date=2026-11-26$/);
   for (const part of ['a', 'b', 'c']) {
     await choice(page, await answer(page)).click();
     await expect(page.locator('.test-note')).toHaveText(new RegExp(`^Got pv-3${part}$`));

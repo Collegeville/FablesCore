@@ -609,7 +609,7 @@
       const todayTab = shell.tabs.querySelector('[data-view="today"]');
       if (archiveDate) {
         const url = new URL(root.location.href);
-        url.searchParams.delete('archive');
+        for (const key of ['archive', 't', 'p']) url.searchParams.delete(key);
         url.hash = '';
         todayTab.href = url.href;
       }

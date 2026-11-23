@@ -160,6 +160,7 @@ body.fables {
   color: var(--ink);
   font-size: 0.9rem;
 }
+.fables-practice a { color: var(--ink); font-weight: 600; } /* every game color stays readable on the amber */
 
 /* Archive ------------------------------------------------------------------ */
 
