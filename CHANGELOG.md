@@ -2,6 +2,21 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.3.0
+
+Toward moving DataFables onto the core (see DataFables' docs/MIGRATION.md).
+
+- **Multi-part days:** a daily puzzle can have `parts`, played in order with a, b, c steps, each unlocking when the one before is done. Shared once at the end with a row per part; counts toward the streak when every part is finished on the day.
+- **A guess limit per puzzle:** `maxAttempts` on a puzzle or part overrides the game's.
+- **Store adapter:** a game can pass its own `store`, so existing saved data stays where it is. `tagRecord()` adds fields to every record.
+- **Fix:** an absent optional piece of the result panel no longer shows as the word "false".
+- **Provider:** a game can load puzzles on demand (one file per day) instead of passing a whole bank; each loaded puzzle is checked.
+- **Archive tab** (`archive`), played as practice outside the streak.
+- **Run-based Unlimited levels** (`unlimitedLevels: 'run'`), with current and best run on Stats; an unfinished Unlimited puzzle resumes.
+- **`weeklyRamp: false`** for games without the ramp yet.
+- **Hooks:** `intro`, `stats`, `help`, `resultNote`, plus `Fables.el` for building their elements.
+- **Fix:** changing the Unlimited filter starts a matching puzzle instead of resuming the old one.
+
 ## 0.2.0
 
 - Streaks now count a day when its daily puzzle is finished, solved or not, matching DataFables. A daily puzzle played on a later day (from a shared link) does not fill in a past day; records carry `onTime` for this.

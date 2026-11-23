@@ -118,6 +118,66 @@ body.fables {
 
 .fables-puzzle { margin-top: 4px; }
 
+/* Multi-part days: a, b, c steps ------------------------------------------- */
+
+.fables-steps { display: flex; gap: 6px; margin: 4px 0 6px; padding: 0; list-style: none; }
+.fables-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 2.6em;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 600 0.88rem/1.2 system-ui, sans-serif;
+  cursor: pointer;
+}
+.fables-step.viewing { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.fables-step.solved { color: var(--good); }
+.fables-step.missed { color: var(--lost); }
+.fables-step:disabled { color: var(--muted); cursor: default; opacity: 0.7; }
+.fables-step-letter { color: var(--ink); }
+
+/* First-visit card, archive practice banner ---------------------------------- */
+
+.fables-intro {
+  margin: 8px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.fables-intro h2 { margin-top: 0; }
+.fables-intro p, .fables-intro li { font-size: 0.93rem; }
+.fables-practice {
+  margin: 4px 0 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--miss-soft);
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+/* Archive ------------------------------------------------------------------ */
+
+.fables-archive { margin: 0; padding: 0; list-style: none; }
+.fables-archive a {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+}
+.fables-archive a:hover { background: var(--surface); }
+.fables-status { color: var(--muted); font-size: 0.88rem; }
+.fables-status.won { color: var(--good); }
+.fables-status.lost { color: var(--lost); }
+
 /* Unlimited picker --------------------------------------------------------- */
 
 .fables-picker {
@@ -132,6 +192,7 @@ body.fables {
   background: var(--surface);
   font-size: 0.9rem;
 }
+.fables-run p { margin: 0; }
 .fables-picker select { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); }
 
 /* Feedback: the result area ----------------------------------------------- */
