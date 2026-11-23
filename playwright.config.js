@@ -10,7 +10,7 @@ module.exports = defineConfig({
   snapshotPathTemplate: '{testDir}/baselines/{platform}/{arg}{ext}',
   fullyParallel: true,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
-  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: 'disabled' } },
+  expect: { toHaveScreenshot: { maxDiffPixels: 20, animations: 'disabled' } },
   use: {
     // Locally, use the Chrome already on the Mac; CI installs Playwright's own Chromium.
     channel: process.env.CI ? undefined : 'chrome',
