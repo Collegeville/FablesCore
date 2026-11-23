@@ -1,6 +1,6 @@
 {
   "name": "fables-core",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "FablesCore: the shared framework for the Fables games",
   "license": "MIT",

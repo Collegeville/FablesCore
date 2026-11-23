@@ -2,6 +2,10 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.3.1
+
+- **Fix:** Daily stats (played, solved, the guess chart) count only puzzles played on their own day. Archive practice no longer inflates them, matching the streak and DataFables' long-standing rule.
+
 ## 0.3.0
 
 Toward moving DataFables onto the core (see DataFables' docs/MIGRATION.md).
