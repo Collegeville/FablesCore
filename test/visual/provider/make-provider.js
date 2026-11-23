@@ -21,7 +21,7 @@
   window.Fables.start = (options) => start({
     ...options,
     bank: undefined,
-    game: { ...options.game, icon: '../../../example/icons/icon.svg', weeklyRamp: false, archive: { days: 60 }, unlimitedLevels: 'run', runLevels: { levels: 3, perLevel: 2 } },
+    game: { ...options.game, icon: '../../../example/icons/icon.svg', weeklyRamp: new URLSearchParams(location.search).get('ramp') ? { from: new URLSearchParams(location.search).get('ramp') } : false, archive: { days: 60 }, unlimitedLevels: 'run', runLevels: { levels: 3, perLevel: 2 } },
     provider: {
       daily: (date) => { window.TEST_LOG.push(`daily ${date}`); return wait(days.find((d) => d.date === date) ?? null); },
       byId: (id) => wait(findPart(id) ?? (days.find((d) => d.id === id) && { puzzle: days.find((d) => d.id === id), track: 'daily' })

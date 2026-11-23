@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.3.1';
+  const VERSION = '0.4.0';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -82,8 +82,11 @@
   // across the whole bank, never reused) and a `serial` (the number players see, in sequence within
   // its track). Daily puzzles also have a `date`; unlimited puzzles have a `concept` and `level`.
 
-  // `ramp: false` skips the weekly-ramp rules (Sunday capstones, the Monday-to-Saturday climb),
-  // for a game that has no ramp yet.
+  // `ramp` is true (the weekly-ramp rules apply: Sunday capstones, the Monday-to-Saturday climb),
+  // false (a game with no ramp), or a Monday 'YYYY-MM-DD' from which the ramp starts; earlier
+  // days are checked without it.
+  const rampOn = (ramp, date) => ramp === true || (typeof ramp === 'string' && dayNumber(date) >= dayNumber(ramp));
+
   function validateBank(bank, { ramp = true } = {}) {
     const errors = [];
     if (!bank || typeof bank !== 'object') return { ok: false, errors: ['The puzzle bank is missing.'] };
@@ -121,6 +124,7 @@
       const sorted = [...serials].sort((a, b) => a - b);
       if (sorted.some((s, i) => i > 0 && s !== sorted[i - 1] + 1)) errors.push(`${track}: serial numbers must run in sequence with no gaps`);
     }
+    if (typeof ramp === 'string' && (!isValidDate(ramp) || weekday(ramp) !== 1)) errors.push(`the weekly ramp must start on a Monday, not ${ramp}`);
     if (Array.isArray(tracks.daily)) validateDaily(tracks.daily, errors, ramp);
     if (Array.isArray(tracks.unlimited)) {
       for (const [i, p] of tracks.unlimited.entries()) {
@@ -141,19 +145,18 @@
       }
       if (dates.has(p.date)) errors.push(`${where}: two puzzles on ${p.date}`);
       dates.add(p.date);
-      if (!ramp) continue;
+      if (!rampOn(ramp, p.date)) continue;
       const slot = rampSlot(p.date);
       if (slot.capstone && !p.capstone) errors.push(`${where}: ${p.date} is a Sunday, so it must be a capstone`);
       if (!slot.capstone && p.capstone) errors.push(`${where}: capstones belong on Sundays, not ${p.date}`);
     }
-    if (!ramp) return;
     const valid = daily.filter((p) => isValidDate(p.date) && Number.isInteger(p.serial));
     const byDate = [...valid].sort((a, b) => dayNumber(a.date) - dayNumber(b.date));
     if (byDate.some((p, i) => i > 0 && p.serial < byDate[i - 1].serial)) errors.push('daily: serial numbers must increase with the date');
     // Within each week, Monday to Saturday must not get easier.
     const weeks = new Map();
     for (const p of byDate) {
-      if (p.capstone) continue;
+      if (p.capstone || !rampOn(ramp, p.date)) continue;
       const key = weekStart(p.date);
       weeks.set(key, [...(weeks.get(key) ?? []), p]);
     }
@@ -544,7 +547,8 @@
     const params = new URLSearchParams(root.location.search);
     const day = isValidDate(params.get('date')) ? params.get('date') : today(new Date(), game.timeZone);
     const maxAttempts = game.maxAttempts ?? 3;
-    const ramp = game.weeklyRamp !== false;
+    // true by default; false for no ramp; { from: 'YYYY-MM-DD' } for a ramp that starts on a Monday.
+    const ramp = game.weeklyRamp === false ? false : game.weeklyRamp?.from ?? true;
     const runMode = game.unlimitedLevels === 'run';
     // A game may plug in its own storage (see README, "Store adapter"); otherwise the core's.
     const store = options.store ?? createStore(game.id, undefined, options.migrations);
@@ -658,7 +662,7 @@
         return undefined;
       }
       const slot = rampSlot(puzzle.date);
-      const label = !ramp ? WEEKDAYS[weekday(puzzle.date)] : slot.capstone ? 'Sunday capstone' : `${slot.weekday} · level ${slot.level} of 6`;
+      const label = !rampOn(ramp, puzzle.date) ? WEEKDAYS[weekday(puzzle.date)] : slot.capstone ? 'Sunday capstone' : `${slot.weekday} · level ${slot.level} of 6`;
       const practice = puzzle.date !== day && h('p', { class: 'fables-practice' },
         `Practice: ${shortDate(puzzle.date)} is from the archive, so it doesn't change your streak. `,
         h('a', { href: shell.tabs.querySelector('[data-view="today"]').href }, 'Back to today'));
@@ -1068,16 +1072,18 @@
 
     function showHelp() {
       const settings = store.settings();
-      const week = ramp
-        ? 'A new daily puzzle arrives every day. They get harder from Monday to Saturday, and Sunday brings a capstone that mixes the week’s ideas. Finish the day’s puzzle, solved or not, to keep your streak going.'
-        : 'A new daily puzzle arrives every day. Finish it, solved or not, to keep your streak going.';
+      const climb = 'they get harder from Monday to Saturday, and Sunday brings a capstone that mixes the week’s ideas.';
+      let week = 'A new daily puzzle arrives every day.';
+      if (rampOn(ramp, day)) week += ` They get harder from Monday to Saturday, and Sunday brings a capstone that mixes the week’s ideas.`;
+      else if (typeof ramp === 'string') week += ` Starting ${WEEKDAYS[weekday(ramp)].slice(0, 3)} ${shortDate(ramp)}, ${climb}`;
+      week += ' Finish the day’s puzzle, solved or not, to keep your streak going.';
       const unlimitedText = runMode
         ? ' Unlimited has as many extra puzzles as you like. Solve them in a row to build a run; the level rises as the run grows. Runs never touch your daily streak.'
         : ' Unlimited mode has as many extra puzzles as you like, with their own numbers, and never touches your streak.';
       shell.main.replaceChildren(...[
         h('section', { class: 'fables-help', html: game.help ?? '' }),
         h('section', { class: 'fables-help' },
-          h('h2', {}, ramp ? 'How the week works' : 'Daily and Unlimited'),
+          h('h2', {}, ramp !== false ? 'How the week works' : 'Daily and Unlimited'),
           h('p', {}, week + unlimitedText + (game.archive ? ' Past days are in the Archive as practice.' : ''))),
         ...[].concat(options.help?.(ctx()) ?? []),
         h('section', { class: 'fables-help' },

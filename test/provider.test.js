@@ -39,3 +39,20 @@ test('a game without a weekly ramp may have ordinary Sundays and any difficulty 
   assert.equal(F.validateBank({ daily }).ok, false);
   assert.deepEqual(F.validateBank({ daily }, { ramp: false }), { ok: true, errors: [] });
 });
+
+test('a ramp can start on a Monday: earlier days are free, later weeks must climb', () => {
+  const day = (serial, date, difficulty, capstone = false) => ({ id: `d${serial}`, serial, date, difficulty, capstone });
+  const before = [day(1, '2026-11-27', 5), day(2, '2026-11-28', 1), day(3, '2026-11-29', 1)]; // Fri, Sat, Sun: no ramp yet
+  const week = [1, 2, 3, 4, 5, 6].map((d, i) => day(4 + i, F.addDays('2026-11-30', i), d)).concat(day(10, '2026-12-06', 9, true));
+  assert.deepEqual(F.validateBank({ daily: [...before, ...week] }, { ramp: '2026-11-30' }), { ok: true, errors: [] });
+  const dips = week.map((p, i) => (i === 3 ? { ...p, difficulty: 0 } : p));
+  assert.ok(F.validateBank({ daily: [...before, ...dips] }, { ramp: '2026-11-30' }).errors.some((e) => /2026-11-30 gets easier/.test(e)));
+  const noCapstone = week.map((p, i) => (i === 6 ? { ...p, capstone: false } : p));
+  assert.ok(F.validateBank({ daily: noCapstone }, { ramp: '2026-11-30' }).errors.some((e) => /must be a capstone/.test(e)));
+  assert.ok(F.validateBank({ daily: before }, { ramp: '2026-12-01' }).errors.some((e) => /must start on a Monday/.test(e)));
+});
+
+test('serial numbers must increase with the date even without a ramp', () => {
+  const daily = [{ id: 'a', serial: 2, date: '2026-11-23', difficulty: 1 }, { id: 'b', serial: 1, date: '2026-11-24', difficulty: 1 }];
+  assert.ok(F.validateBank({ daily }, { ramp: false }).errors.some((e) => /increase with the date/.test(e)));
+});
