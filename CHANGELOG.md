@@ -2,6 +2,15 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## Unreleased (0.3.0)
+
+Toward moving DataFables onto the core (see DataFables' docs/MIGRATION.md).
+
+- **Multi-part days:** a daily puzzle can have `parts`, played in order with a, b, c steps, each unlocking when the one before is done. Shared once at the end with a row per part; counts toward the streak when every part is finished on the day.
+- **A guess limit per puzzle:** `maxAttempts` on a puzzle or part overrides the game's.
+- **Store adapter:** a game can pass its own `store`, so existing saved data stays where it is. `tagRecord()` adds fields to every record.
+- **Fix:** an absent optional piece of the result panel no longer shows as the word "false".
+
 ## 0.2.0
 
 - Streaks now count a day when its daily puzzle is finished, solved or not, matching DataFables. A daily puzzle played on a later day (from a shared link) does not fill in a past day; records carry `onTime` for this.

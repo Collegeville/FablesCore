@@ -95,6 +95,35 @@ window.MY_BANK = {
 
 If any rule is broken, the game refuses to start, shows a short message, and lists every problem in the browser console. `Fables.validateBank(bank)` returns the same list, so a game's bank script can check itself before writing the file.
 
+### Multi-part days
+
+A daily puzzle can be a set of parts played in order, like DataFables' three tables. Give it `parts` instead of the game fields; each part is a puzzle with its own permanent `id`, and may set its own `maxAttempts` and a `label`:
+
+```js
+{ id: 'df-47', serial: 47, date: '2026-11-23', difficulty: 6.5,
+  parts: [
+    { id: 'df-47a', label: 'Find',  maxAttempts: 4, /* game fields */ },
+    { id: 'df-47b', label: 'Audit', maxAttempts: 2, /* game fields */ },
+    { id: 'df-47c', label: 'Rule',  maxAttempts: 2, /* game fields */ },
+  ] }
+```
+
+The core shows a, b, c steps; each part unlocks when the one before is finished, and the result offers "Next: part b". The day is shared once, after its last part, with one row of squares per part and the score as parts solved (`2/3`). The day counts toward the streak when every part is finished on the day. Any single puzzle can also set its own `maxAttempts`. `render` and `check` are called for each part exactly as for a single puzzle.
+
+### Store adapter
+
+A game that already has players can keep its own saved data. Pass `store` to `Fables.start`, an object with:
+
+| Method | Does |
+| --- | --- |
+| `records()` | Every finished-puzzle record, as a list |
+| `record(entry)` | Saves a record once per puzzle ID (returns false if it already exists) |
+| `solvedIds()` | A Set of the IDs of solved puzzles |
+| `loadState(id)`, `saveState(id, state)` | The in-progress state of one puzzle |
+| `settings()`, `saveSettings(s)` | Settings such as `sound` |
+
+Records the core writes look like `{ id, serial, track, date, onTime, solved, attempts, maxAttempts }`, plus `set`, `part` and `parts` for a part of a multi-part day. An adapter can store them in whatever shape it already uses, as long as `records()` gives them back in this shape. `tagRecord()`, also passed to `Fables.start`, returns extra fields to add to every record (DataFables uses it for class codes).
+
 ### Difficulty
 
 `Fables.difficultyScore(inputs, weights)` turns a game's own structural inputs (line count, concepts combined, nesting depth, and so on) into a score. Later, `Fables.adjustDifficulty(score, stats, hook)` lets real player data (plays, solve rate, mean tries) correct it once a puzzle has enough plays.

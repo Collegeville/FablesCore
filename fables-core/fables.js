@@ -102,6 +102,19 @@
         else if (serials.has(p.serial)) errors.push(`${where}: serial ${p.serial} is used twice in ${track}`);
         else serials.add(p.serial);
         if (typeof p.difficulty !== 'number') errors.push(`${where}: missing difficulty score`);
+        // A multi-part day (a set): each part is its own puzzle with its own permanent ID.
+        if (p.parts !== undefined) {
+          if (track !== 'daily') errors.push(`${where}: only daily puzzles can have parts`);
+          if (!Array.isArray(p.parts) || !p.parts.length) errors.push(`${where}: parts must be a non-empty list`);
+          else for (const [k, part] of p.parts.entries()) {
+            const at = `${where}.parts[${k}]`;
+            if (typeof part.id !== 'string' || !part.id.trim()) errors.push(`${at}: missing id`);
+            else if (ids.has(part.id)) errors.push(`${at}: id "${part.id}" is also used by ${ids.get(part.id)}`);
+            else ids.set(part.id, at);
+            if (part.maxAttempts !== undefined && (!Number.isInteger(part.maxAttempts) || part.maxAttempts < 1)) errors.push(`${at}: maxAttempts must be a whole number`);
+          }
+        }
+        if (p.maxAttempts !== undefined && (!Number.isInteger(p.maxAttempts) || p.maxAttempts < 1)) errors.push(`${where}: maxAttempts must be a whole number`);
       }
       const sorted = [...serials].sort((a, b) => a - b);
       if (sorted.some((s, i) => i > 0 && s !== sorted[i - 1] + 1)) errors.push(`${track}: serial numbers must run in sequence with no gaps`);
@@ -154,9 +167,16 @@
   }
 
   const dailyFor = (bank, date) => (bank.daily ?? []).find((p) => p.date === date) ?? null;
+  // Letters for the parts of a multi-part day: a, b, c, ...
+  const partLetter = (k) => String.fromCharCode(97 + k);
+
   const findPuzzle = (bank, id) => {
     const daily = (bank.daily ?? []).find((p) => p.id === id);
     if (daily) return { puzzle: daily, track: 'daily' };
+    for (const p of bank.daily ?? []) {
+      const k = (p.parts ?? []).findIndex((part) => part.id === id);
+      if (k >= 0) return { puzzle: p, track: 'daily', part: k };
+    }
     const unlimited = (bank.unlimited ?? []).find((p) => p.id === id);
     return unlimited ? { puzzle: unlimited, track: 'unlimited' } : null;
   };
@@ -200,13 +220,28 @@
   // ---------------------------------------------------------------- progress and streaks
   // A record is written once per finished puzzle:
   // { id, serial, track, date, onTime, solved, attempts, maxAttempts }
+  // plus, for one part of a multi-part day: { set: the day's id, part: 'a', parts: how many }
   // `date` is the puzzle's date for daily puzzles, and the day it was played for unlimited ones.
   // `onTime` is false when a daily puzzle was played on a later day (from a shared link).
   // Only daily puzzles count toward the streak. A streak day is a day whose daily puzzle was
-  // finished on that day, solved or not: showing up and working the puzzle is what counts.
+  // finished on that day, solved or not: showing up and working the puzzle is what counts. For a
+  // multi-part day, every part must be finished.
 
   function streakDays(records) {
-    return new Set(records.filter((r) => r.track === 'daily' && r.onTime !== false).map((r) => r.date));
+    const days = new Set();
+    const sets = new Map();
+    for (const r of records) {
+      if (r.track !== 'daily' || r.onTime === false) continue;
+      if (!r.set) {
+        days.add(r.date);
+        continue;
+      }
+      const entry = sets.get(r.set) ?? { date: r.date, parts: r.parts, done: new Set() };
+      entry.done.add(r.part);
+      sets.set(r.set, entry);
+    }
+    for (const s of sets.values()) if (s.done.size >= s.parts) days.add(s.date);
+    return days;
   }
 
   // Today still counts as pending, so an unplayed today does not break the streak.
@@ -319,12 +354,12 @@
   const MARKS = { hit: '🟩', near: '🟨', miss: '🟥', skip: '⬜' };
 
   // The pieces of a shared result, used by both the text and the picture.
-  function shareParts({ game, puzzle, track, rows, solved, attempts, maxAttempts, streak, url }) {
+  function shareParts({ game, puzzle, track, rows, solved, attempts, maxAttempts, streak, url, score }) {
     return {
       game,
       tag: track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`,
       when: track === 'unlimited' ? 'Unlimited' : `${WEEKDAYS[weekday(puzzle.date)].slice(0, 3)} ${shortDate(puzzle.date)}`,
-      score: solved ? `${attempts}/${maxAttempts}` : `X/${maxAttempts}`,
+      score: score ?? (solved ? `${attempts}/${maxAttempts}` : `X/${maxAttempts}`),
       solved: !!solved,
       streak: track === 'daily' && Number.isInteger(streak) ? streak : null,
       rows: rows.map((row) => row.map((m) => (MARKS[m] ? m : 'skip'))),
@@ -462,7 +497,8 @@
     const params = new URLSearchParams(root.location.search);
     const day = isValidDate(params.get('date')) ? params.get('date') : today(new Date(), game.timeZone);
     const maxAttempts = game.maxAttempts ?? 3;
-    const store = createStore(game.id, undefined, options.migrations);
+    // A game may plug in its own storage (see README, "Store adapter"); otherwise the core's.
+    const store = options.store ?? createStore(game.id, undefined, options.migrations);
     const shell = mountShell(game);
 
     const { ok, errors } = validateBank(bank);
@@ -477,6 +513,9 @@
 
     // A shared link (?p=<id>) opens that puzzle once; after that the tabs behave normally.
     let linked = params.get('p') ? findPuzzle(bank, params.get('p')) : null;
+    let viewingPart = null; // which part of today's multi-part puzzle is on screen
+    if (linked && linked.part !== undefined) viewingPart = linked.part;
+    else if (params.get('t')) viewingPart = params.get('t').charCodeAt(0) - 97;
     if (linked && linked.track === 'unlimited') {
       current = linked.puzzle;
       linked = null;
@@ -505,7 +544,51 @@
       }
       const slot = rampSlot(puzzle.date);
       const label = slot.capstone ? 'Sunday capstone' : `${slot.weekday} · level ${slot.level} of 6`;
+      if (puzzle.parts) return showParts(puzzle, label);
       return play(puzzle, 'daily', `#${puzzle.serial} · ${shortDate(puzzle.date)} · ${label}`);
+    }
+
+    // ---- multi-part days: parts are played in order, each unlocking when the one before is done.
+    const partDone = (part) => store.records().find((r) => r.id === part.id) ?? null;
+
+    function partSteps(set) {
+      const done = set.parts.map(partDone);
+      const current = done.findIndex((d) => !d);
+      return set.parts.map((part, k) => {
+        let state = 'locked';
+        if (done[k]) state = done[k].solved ? 'solved' : 'missed';
+        else if (k === current) state = 'current';
+        return { part, k, letter: partLetter(k), state, open: state !== 'locked' };
+      });
+    }
+
+    function showParts(set, label) {
+      const steps = partSteps(set);
+      const open = steps.filter((s) => s.open).map((s) => s.k);
+      const firstUnfinished = steps.find((s) => s.state === 'current');
+      const k = open.includes(viewingPart) ? viewingPart : firstUnfinished ? firstUnfinished.k : set.parts.length - 1;
+      viewingPart = k;
+      const nav = stepsNav(set, k);
+      const part = set.parts[k];
+      const kicker = `#${set.serial}${partLetter(k)} · ${shortDate(set.date)}${part.label ? ` · ${part.label}` : ''} · ${label}`;
+      return play(part, 'daily', kicker, nav, { set, k, nav });
+    }
+
+    function stepsNav(set, k) {
+      const GLYPH = { solved: '✓', missed: '✕', current: '•', locked: '' };
+      const STATE = { solved: 'solved', missed: 'missed', current: 'playing now', locked: 'locked until the one before is done' };
+      return h('ol', { class: 'fables-steps', 'aria-label': `#${set.serial} parts` }, partSteps(set).map((st) => h('li', {},
+        h('button', {
+          type: 'button',
+          class: `fables-step ${st.state}${st.k === k ? ' viewing' : ''}`,
+          disabled: !st.open,
+          'aria-current': st.k === k ? 'step' : null,
+          'aria-label': `Part ${st.letter}${st.part.label ? `, ${st.part.label}` : ''}: ${STATE[st.state]}`,
+          onclick: () => {
+            viewingPart = st.k;
+            showToday();
+          },
+        }, h('span', { class: 'fables-step-letter' }, st.letter), h('span', { 'aria-hidden': 'true' }, GLYPH[st.state])))));
     }
 
     function showUnlimited() {
@@ -553,8 +636,11 @@
     }
 
     // One puzzle on screen: the game draws it, the core checks, records and announces.
-    function play(puzzle, track, kicker, before) {
+    // `inSet` is { set, k } when this puzzle is part k of a multi-part day.
+    function play(puzzle, track, kicker, before, inSet) {
+      const maxAttempts = puzzle.maxAttempts ?? options.game.maxAttempts ?? 3; // per puzzle, else the game's
       const state = store.loadState(puzzle.id) ?? { answers: [], marks: [] };
+      const day0 = inSet ? inSet.set : puzzle; // the daily entry that carries the date and number
       const area = h('div', { class: 'fables-puzzle' });
       const result = h('section', { class: 'fables-result', 'aria-label': 'Result', tabindex: '-1' });
       const head = h('header', { class: 'fables-puzzle-head' },
@@ -586,11 +672,19 @@
         store.saveState(puzzle.id, state);
         if (done()) {
           store.record({
-            id: puzzle.id, serial: puzzle.serial, track,
-            date: track === 'daily' ? puzzle.date : day,
-            onTime: track === 'daily' ? puzzle.date === day : undefined,
+            id: puzzle.id, serial: day0.serial, track,
+            date: track === 'daily' ? day0.date : day,
+            onTime: track === 'daily' ? day0.date === day : undefined,
             solved: !!state.solved, attempts: state.answers.length, maxAttempts,
+            ...(inSet && { set: inSet.set.id, part: partLetter(inSet.k), parts: inSet.set.parts.length }),
+            ...(options.tagRecord && options.tagRecord()),
           });
+          // Redraw the a/b/c steps so the next part unlocks.
+          if (inSet) {
+            const nav = stepsNav(inSet.set, inSet.k);
+            inSet.nav.replaceWith(nav);
+            inSet.nav = nav;
+          }
         }
         head.querySelectorAll('.fables-pip').forEach((pip, i) => {
           if (i < state.marks.length) pip.className = `fables-pip ${state.marks[i]}`;
@@ -620,26 +714,55 @@
         result.classList.add(state.solved ? 'is-solved' : 'is-lost');
         const verdict = state.solved ? `Solved in ${tries(used)}.` : `Not solved. All ${tries(maxAttempts)} used.`;
         const streak = currentStreak(store.records(), day);
-        const rows = rowsFor(state.marks, puzzle);
-        const shareInput = {
-          game: game.name, puzzle, track, rows, solved: !!state.solved, attempts: used, maxAttempts,
-          streak: track === 'daily' && puzzle.date === day ? streak : undefined, url: shareUrl(game.url, puzzle),
-        };
-        const text = shareText(shareInput);
-        const report = feedbackLink(game.feedbackUrl, puzzle, track);
-        result.append(
+        const onTime = track === 'daily' && day0.date === day;
+        // A multi-part day is shared once, after its last part; until then, point to the next part.
+        const setDone = inSet ? inSet.set.parts.every(partDone) : true;
+        const nextPart = inSet && !setDone ? inSet.set.parts.findIndex((part) => !partDone(part)) : -1;
+        let share = null;
+        if (setDone) {
+          const shareInput = inSet
+            ? (() => {
+              const finished = inSet.set.parts.map(partDone);
+              const solvedParts = finished.filter((r) => r.solved).length;
+              return {
+                game: game.name, puzzle: inSet.set, track,
+                rows: inSet.set.parts.map((part) => store.loadState(part.id)?.marks ?? []),
+                solved: solvedParts > 0, score: `${solvedParts}/${inSet.set.parts.length}`,
+                streak: onTime ? streak : undefined, url: shareUrl(game.url, inSet.set),
+              };
+            })()
+            : {
+              game: game.name, puzzle, track, rows: rowsFor(state.marks, puzzle), solved: !!state.solved, attempts: used, maxAttempts,
+              streak: onTime ? streak : undefined, url: shareUrl(game.url, puzzle),
+            };
+          share = shareBox(shareText(shareInput), shareParts(shareInput), `${game.id}-${track === 'unlimited' ? 'U' : ''}${day0.serial}.png`);
+        }
+        const reportTarget = inSet ? { id: puzzle.id, serial: `${inSet.set.serial}${partLetter(inSet.k)}` } : puzzle;
+        const report = feedbackLink(game.feedbackUrl, reportTarget, track);
+        // DOM append writes false and null as text, so drop the optional pieces that are absent.
+        result.append(...[
           h('p', { class: 'fables-verdict' },
             h('span', { class: 'fables-icon', 'aria-hidden': 'true' }, state.solved ? '✓' : '✕'),
             h('span', {}, verdict)),
-          track === 'daily' && puzzle.date === day && h('p', { class: 'fables-streak' }, `Streak: ${plural(streak, 'day')}`),
+          onTime && setDone && h('p', { class: 'fables-streak' }, `Streak: ${plural(streak, 'day')}`),
           puzzle.explanation && h('p', { class: 'fables-explanation' }, puzzle.explanation),
           puzzle.moral && h('p', { class: 'fables-moral' }, h('span', {}, 'Moral: '), puzzle.moral),
-          shareBox(text, shareParts(shareInput), `${game.id}-${shareInput.track === 'unlimited' ? 'U' : ''}${puzzle.serial}.png`),
+          nextPart >= 0 && h('p', { class: 'fables-after' }, h('button', {
+            type: 'button',
+            class: 'fables-button',
+            onclick: () => {
+              viewingPart = nextPart;
+              showToday();
+              root.scrollTo({ top: 0 });
+            },
+          }, `Next: part ${partLetter(nextPart)}${inSet.set.parts[nextPart].label ? `, ${inSet.set.parts[nextPart].label}` : ''} →`)),
+          share,
           h('p', { class: 'fables-after' },
             track === 'unlimited'
               ? h('button', { type: 'button', class: 'fables-button', onclick: nextUnlimited }, 'Next puzzle')
-              : h('a', { href: '#unlimited' }, 'Play more in Unlimited'),
-            report && h('a', { class: 'fables-report', href: report, target: '_blank', rel: 'noopener' }, `Report a problem with ${puzzle.id}`)));
+              : setDone && h('a', { href: '#unlimited' }, 'Play more in Unlimited'),
+            report && h('a', { class: 'fables-report', href: report, target: '_blank', rel: 'noopener' }, `Report a problem with ${reportTarget.id}`)),
+        ].filter(Boolean));
         if (fresh) {
           shell.say(`${verdict}${puzzle.moral ? ` Moral: ${puzzle.moral}` : ''}`);
           result.classList.add('fables-enter');
@@ -708,6 +831,10 @@
           status));
     }
 
+    // The longest guess limit anywhere in the bank, for the Stats chart.
+    const mostAttempts = Math.max(maxAttempts, ...[...(bank.daily ?? []), ...(bank.unlimited ?? [])]
+      .flatMap((p) => [p, ...(p.parts ?? [])]).map((p) => p.maxAttempts ?? 0));
+
     function showStats() {
       const records = store.records();
       const daily = trackStats(records, 'daily');
@@ -716,7 +843,7 @@
       const dist = (s) => {
         const max = Math.max(1, ...Object.values(s.distribution));
         return h('ol', { class: 'fables-dist', 'aria-label': 'Solved by number of tries' },
-          Array.from({ length: maxAttempts }, (_, i) => {
+          Array.from({ length: mostAttempts }, (_, i) => {
             const n = s.distribution[i + 1] ?? 0;
             return h('li', {}, h('span', {}, String(i + 1)),
               h('span', { class: 'fables-bar', style: `width:${Math.max(4, (100 * n) / max)}%` }), h('span', {}, String(n)));
