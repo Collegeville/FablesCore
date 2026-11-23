@@ -1,1 +1,1 @@
-ExampleFables icon: five rising bars, with the fourth bar out of step
+ExampleFables icon: a row of dots climbing in steady steps, with one dot out of line

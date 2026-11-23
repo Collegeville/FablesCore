@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.1.0';
+  const VERSION = '0.2.0';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -199,12 +199,14 @@
 
   // ---------------------------------------------------------------- progress and streaks
   // A record is written once per finished puzzle:
-  // { id, serial, track, date, solved, attempts, maxAttempts }
+  // { id, serial, track, date, onTime, solved, attempts, maxAttempts }
   // `date` is the puzzle's date for daily puzzles, and the day it was played for unlimited ones.
-  // Only daily puzzles count toward the streak; a streak day is a day whose daily puzzle was solved.
+  // `onTime` is false when a daily puzzle was played on a later day (from a shared link).
+  // Only daily puzzles count toward the streak. A streak day is a day whose daily puzzle was
+  // finished on that day, solved or not: showing up and working the puzzle is what counts.
 
   function streakDays(records) {
-    return new Set(records.filter((r) => r.track === 'daily' && r.solved).map((r) => r.date));
+    return new Set(records.filter((r) => r.track === 'daily' && r.onTime !== false).map((r) => r.date));
   }
 
   // Today still counts as pending, so an unplayed today does not break the streak.
@@ -316,15 +318,79 @@
 
   const MARKS = { hit: '🟩', near: '🟨', miss: '🟥', skip: '⬜' };
 
-  function shareText({ game, puzzle, track, rows, solved, attempts, maxAttempts, streak, url }) {
-    const tag = track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`;
-    const when = track === 'unlimited' ? 'Unlimited' : `${WEEKDAYS[weekday(puzzle.date)].slice(0, 3)} ${shortDate(puzzle.date)}`;
-    const score = solved ? `${attempts}/${maxAttempts}` : `X/${maxAttempts}`;
-    const parts = [`${game} ${tag}`, when, score];
-    if (track === 'daily' && Number.isInteger(streak)) parts.push(`Streak ${streak}`);
-    const lines = [parts.join(' · '), ...rows.map((row) => row.map((m) => MARKS[m] ?? MARKS.skip).join(''))];
-    if (url) lines.push(url);
+  // The pieces of a shared result, used by both the text and the picture.
+  function shareParts({ game, puzzle, track, rows, solved, attempts, maxAttempts, streak, url }) {
+    return {
+      game,
+      tag: track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`,
+      when: track === 'unlimited' ? 'Unlimited' : `${WEEKDAYS[weekday(puzzle.date)].slice(0, 3)} ${shortDate(puzzle.date)}`,
+      score: solved ? `${attempts}/${maxAttempts}` : `X/${maxAttempts}`,
+      solved: !!solved,
+      streak: track === 'daily' && Number.isInteger(streak) ? streak : null,
+      rows: rows.map((row) => row.map((m) => (MARKS[m] ? m : 'skip'))),
+      url: url || '',
+    };
+  }
+
+  function shareText(opts) {
+    const p = shareParts(opts);
+    const head = [`${p.game} ${p.tag}`, p.when, p.score];
+    if (p.streak != null) head.push(`Streak ${p.streak}`);
+    const lines = [head.join(' · '), ...p.rows.map((row) => row.map((m) => MARKS[m]).join(''))];
+    if (p.url) lines.push(p.url);
     return lines.join('\n');
+  }
+
+  // The picture: a 1200 x 630 card (the shape link previews use) drawn from the same pieces as
+  // the text, so it is just as spoiler-free. Shapes and text only, no photos.
+  const CARD = { width: 1200, height: 630 };
+  const CARD_COLORS = { hit: '#16a34a', near: '#eab308', miss: '#dc2626', skip: '#cbd5e1' };
+
+  function drawShareCard(canvas, parts, color = '#0e7c86') {
+    canvas.width = CARD.width;
+    canvas.height = CARD.height;
+    const c = canvas.getContext('2d');
+    const serif = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+    const sans = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+    c.fillStyle = color;
+    c.fillRect(0, 0, CARD.width, CARD.height);
+    const round = (x, y, w, hgt, r) => {
+      c.beginPath();
+      c.moveTo(x + r, y);
+      c.arcTo(x + w, y, x + w, y + hgt, r);
+      c.arcTo(x + w, y + hgt, x, y + hgt, r);
+      c.arcTo(x, y + hgt, x, y, r);
+      c.arcTo(x, y, x + w, y, r);
+      c.closePath();
+    };
+    c.fillStyle = '#faf7f0';
+    round(40, 40, CARD.width - 80, CARD.height - 80, 28);
+    c.fill();
+    c.fillStyle = '#1f2a37';
+    c.font = `700 64px ${serif}`;
+    c.fillText(parts.game, 90, 140);
+    c.fillStyle = '#5b6573';
+    c.font = `500 34px ${sans}`;
+    c.fillText(`${parts.tag} · ${parts.when}`, 90, 192);
+    c.fillStyle = parts.solved ? CARD_COLORS.hit : '#b42318';
+    c.font = `700 120px ${serif}`;
+    c.fillText(parts.score, 90, 360);
+    // Squares shrink to fit when a game has many tries per row.
+    const longest = Math.max(1, ...parts.rows.map((row) => row.length));
+    const gap = 14;
+    const size = Math.min(64, Math.floor((CARD.width - 90 - 470) / longest) - gap);
+    parts.rows.forEach((row, r) => row.forEach((m, i) => {
+      c.fillStyle = CARD_COLORS[m];
+      round(470 + i * (size + gap), 282 + r * (size + gap), size, size, 10);
+      c.fill();
+    }));
+    c.fillStyle = '#1f2a37';
+    c.font = `600 36px ${sans}`;
+    if (parts.streak != null) c.fillText(`Streak: ${parts.streak} ${parts.streak === 1 ? 'day' : 'days'}`, 90, 470);
+    c.fillStyle = '#5b6573';
+    c.font = `400 26px ${sans}`;
+    if (parts.url) c.fillText(parts.url.replace(/^https?:\/\//, '').replace(/\?.*$/, ''), 90, 540);
+    return canvas;
   }
 
   // The link in a share opens the same puzzle by its permanent ID.
@@ -522,6 +588,7 @@
           store.record({
             id: puzzle.id, serial: puzzle.serial, track,
             date: track === 'daily' ? puzzle.date : day,
+            onTime: track === 'daily' ? puzzle.date === day : undefined,
             solved: !!state.solved, attempts: state.answers.length, maxAttempts,
           });
         }
@@ -554,19 +621,20 @@
         const verdict = state.solved ? `Solved in ${tries(used)}.` : `Not solved. All ${tries(maxAttempts)} used.`;
         const streak = currentStreak(store.records(), day);
         const rows = rowsFor(state.marks, puzzle);
-        const text = shareText({
+        const shareInput = {
           game: game.name, puzzle, track, rows, solved: !!state.solved, attempts: used, maxAttempts,
           streak: track === 'daily' && puzzle.date === day ? streak : undefined, url: shareUrl(game.url, puzzle),
-        });
+        };
+        const text = shareText(shareInput);
         const report = feedbackLink(game.feedbackUrl, puzzle, track);
         result.append(
           h('p', { class: 'fables-verdict' },
             h('span', { class: 'fables-icon', 'aria-hidden': 'true' }, state.solved ? '✓' : '✕'),
             h('span', {}, verdict)),
-          track === 'daily' && state.solved && h('p', { class: 'fables-streak' }, `Streak: ${plural(streak, 'day')}`),
+          track === 'daily' && puzzle.date === day && h('p', { class: 'fables-streak' }, `Streak: ${plural(streak, 'day')}`),
           puzzle.explanation && h('p', { class: 'fables-explanation' }, puzzle.explanation),
           puzzle.moral && h('p', { class: 'fables-moral' }, h('span', {}, 'Moral: '), puzzle.moral),
-          shareBox(text),
+          shareBox(text, shareParts(shareInput), `${game.id}-${shareInput.track === 'unlimited' ? 'U' : ''}${puzzle.serial}.png`),
           h('p', { class: 'fables-after' },
             track === 'unlimited'
               ? h('button', { type: 'button', class: 'fables-button', onclick: nextUnlimited }, 'Next puzzle')
@@ -584,7 +652,8 @@
       announce(false);
     }
 
-    function shareBox(text) {
+    function shareBox(text, parts, filename) {
+      const cardColor = getComputedStyle(doc.body).getPropertyValue('--game').trim() || game.color;
       const status = h('span', { class: 'fables-copied', role: 'status' });
       return h('section', { class: 'fables-share', 'aria-label': 'Share your result' },
         h('pre', { class: 'fables-share-text' }, text),
@@ -612,6 +681,30 @@
               }
             },
           }, 'Share…'),
+          h('button', {
+            type: 'button',
+            class: 'fables-button secondary',
+            onclick: () => {
+              const canvas = drawShareCard(doc.createElement('canvas'), parts, game.color || cardColor);
+              canvas.toBlob(async (blob) => {
+                const file = new root.File([blob], filename, { type: 'image/png' });
+                // Phones can share the picture straight to an app; elsewhere it downloads.
+                if (root.navigator.canShare?.({ files: [file] })) {
+                  try {
+                    await root.navigator.share({ files: [file] });
+                    return;
+                  } catch {
+                    // Closed the share sheet; fall back to saving.
+                  }
+                }
+                const link = h('a', { href: root.URL.createObjectURL(blob), download: filename });
+                doc.body.append(link);
+                link.click();
+                link.remove();
+                status.textContent = 'Picture saved.';
+              }, 'image/png');
+            },
+          }, 'Save picture'),
           status));
     }
 
@@ -648,7 +741,7 @@
         h('section', { class: 'fables-help', html: game.help ?? '' }),
         h('section', { class: 'fables-help' },
           h('h2', {}, 'How the week works'),
-          h('p', {}, 'A new daily puzzle arrives every day. They get harder from Monday to Saturday, and Sunday brings a capstone that mixes the week’s ideas. Unlimited mode has as many extra puzzles as you like, with their own numbers, and never touches your streak.'),
+          h('p', {}, 'A new daily puzzle arrives every day. They get harder from Monday to Saturday, and Sunday brings a capstone that mixes the week’s ideas. Finish the day’s puzzle, solved or not, to keep your streak going. Unlimited mode has as many extra puzzles as you like, with their own numbers, and never touches your streak.'),
           h('h2', {}, 'Settings'),
           h('p', {}, h('button', {
             type: 'button',
@@ -717,7 +810,7 @@
     // progress
     createStore, memoryStorage, streakDays, currentStreak, maxStreak, trackStats,
     // sharing
-    MARKS, shareText, shareUrl, feedbackLink,
+    MARKS, shareParts, shareText, shareUrl, feedbackLink, drawShareCard,
     // browser
     start,
   };
