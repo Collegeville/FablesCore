@@ -6,7 +6,7 @@ FablesCore holds everything the games have in common, so it is improved once and
 
 - **Page shell:** header with the game's icon and name, the Today, Unlimited, Stats and Help tabs, and the standard footer. Light and dark themes, phone and desktop layouts.
 - **Feedback:** right and wrong answers are announced instantly and unmistakably, with color, an icon and a sentence ("Solved in two tries."), a short animation that respects reduced-motion settings, a screen-reader announcement, and an optional chime that is off by default.
-- **Sharing:** a spoiler-free emoji grid with the game, puzzle number, date, tries and streak, a Copy button that confirms, and the phone's share sheet.
+- **Sharing:** a spoiler-free emoji grid with the game, puzzle number, date, tries and streak, a Copy button that confirms, the phone's share sheet, and a drawn result picture to save or share.
 - **Weekly schedule:** puzzles climb from level 1 on Monday to level 6 on Saturday, and Sunday is a capstone that mixes the week's ideas.
 - **Unlimited mode:** extra puzzles on their own numbers (U-1, U-2, …), chosen by concept and level or as a random mix, preferring ones the player hasn't solved. They never touch the daily streak.
 - **Puzzle identity, difficulty, progress:** permanent IDs and serial numbers checked when a game starts, a difficulty score with a hook for real player data, and streaks and stats saved on the player's device only.

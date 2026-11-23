@@ -2,6 +2,13 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.2.0
+
+- Streaks now count a day when its daily puzzle is finished, solved or not, matching DataFables. A daily puzzle played on a later day (from a shared link) does not fill in a past day; records carry `onTime` for this.
+- A **Save picture** button in the share box draws a 1200 × 630 result card (game, puzzle number, date, score, the colored squares, streak) from the same spoiler-free pieces as the text. On phones it opens the share sheet with the picture; elsewhere it downloads a PNG.
+- `Fables.shareParts` and `Fables.drawShareCard` are available to games.
+- The example game has a new icon (dots, one out of line), leaving rising bars for ScaleFables.
+
 ## 0.1.0
 
 First version.

@@ -100,6 +100,27 @@ test.describe('behavior in the browser', () => {
     await expect(page.locator('.fables-copied')).toHaveText(/Copied/);
   });
 
+  test('Save picture downloads a 1200 x 630 card with no puzzle content', async ({ page }) => {
+    await page.addInitScript(() => { Object.defineProperty(navigator, 'canShare', { value: undefined }); });
+    await open(page);
+    await choice(page, WRONG).click();
+    await choice(page, RIGHT).click();
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save picture' }).click()]);
+    expect(download.suggestedFilename()).toBe('examplefables-1.png');
+    const bytes = require('node:fs').readFileSync(await download.path());
+    expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]).toEqual([1200, 630]);
+    await expect(page.locator('.fables-copied')).toHaveText('Picture saved.');
+    require('node:fs').copyFileSync(await download.path(), require('node:path').join(__dirname, '../../test-results/share-card.png'));
+  });
+
+  test('a missed daily puzzle still keeps the streak', async ({ page }) => {
+    await open(page);
+    for (const i of [0, 1, 2]) await choice(page, i).click();
+    await expect(page.locator('.fables-result')).toHaveClass(/is-lost/);
+    await expect(page.locator('.fables-streak')).toHaveText('Streak: 1 day');
+    await expect(page.locator('.fables-share-text')).toHaveText(/X\/3 · Streak 1/);
+  });
+
   test('unlimited: own numbers, filters, next puzzle, and no effect on the streak', async ({ page }) => {
     await open(page);
     await page.getByRole('link', { name: 'Unlimited', exact: true }).click();

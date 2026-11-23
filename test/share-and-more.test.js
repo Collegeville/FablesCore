@@ -54,3 +54,11 @@ test('unlimited picks prefer unsolved puzzles, honor filters, and repeat only wh
   const random = F.pickUnlimited(list, new Set(['a']), { mode: 'random', random: () => 0.99 });
   assert.equal(random.puzzle.id, 'c');
 });
+
+test('the picture uses the same spoiler-free pieces as the text', () => {
+  const parts = F.shareParts({ game: 'G', puzzle: daily, track: 'daily', rows: [['miss', 'bogus', 'hit']],
+    solved: true, attempts: 3, maxAttempts: 3, streak: 2, url: 'https://x.test/g/?p=ex-d-0012' });
+  assert.deepEqual(parts, { game: 'G', tag: '#12', when: 'Mon Nov 23', score: '3/3', solved: true, streak: 2,
+    rows: [['miss', 'skip', 'hit']], url: 'https://x.test/g/?p=ex-d-0012' });
+  assert.ok(!JSON.stringify(parts).includes('sequence') && !JSON.stringify(parts).includes('answer'));
+});
