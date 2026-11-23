@@ -13,6 +13,8 @@ FablesCore holds everything the games have in common, so it is improved once and
 
 The code is plain HTML, CSS and JavaScript with no frameworks and no build step.
 
+The [Games page](https://collegeville.github.io/games/) on the Collegeville site describes this shared pattern for players, written from this README. When this README changes on `main`, an issue is opened on the site's repo as a reminder to review that paragraph.
+
 ## See it working
 
 The `example` folder holds **ExampleFables**, a tiny complete game ("Which number breaks the pattern?") built on the core.
