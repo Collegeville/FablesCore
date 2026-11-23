@@ -124,6 +124,42 @@ A game that already has players can keep its own saved data. Pass `store` to `Fa
 
 Records the core writes look like `{ id, serial, track, date, onTime, solved, attempts, maxAttempts }`, plus `set`, `part` and `parts` for a part of a multi-part day. An adapter can store them in whatever shape it already uses, as long as `records()` gives them back in this shape. `tagRecord()`, also passed to `Fables.start`, returns extra fields to add to every record (DataFables uses it for class codes).
 
+### Loading puzzles on demand (provider)
+
+A game with all its puzzles in one `bank` needs nothing more. A game that loads puzzles from files, one day at a time (DataFables), passes a `provider` instead of a `bank`. Every method may be async:
+
+| Method | Returns |
+| --- | --- |
+| `daily(date)` | The daily puzzle (or multi-part day) for that date, or null |
+| `byId(id)` | `{ puzzle, track, part? }` for a shared link, or null |
+| `dates()` | Every date that has a daily puzzle, for the Archive |
+| `unlimited({ concept, level, mode, avoid })` | `{ puzzle, notice? }`: the next Unlimited puzzle, avoiding the IDs in `avoid` if it can; `notice` is shown above it (for example "Level 3 is used up for now") |
+| `concepts()`, `levels()` | Choices for the Unlimited picker (not needed with run-based levels) |
+
+Puzzles from a provider are checked one at a time as they load, with the same rules as a bank.
+
+### Game options
+
+| Option | Does |
+| --- | --- |
+| `weeklyRamp: false` | For a game without the Monday-to-Saturday ramp yet: no Sunday-capstone or climb rules, and the kicker shows just the weekday |
+| `archive: { days: 60 }` | Adds an **Archive** tab listing past days. A past day opens with `?archive=YYYY-MM-DD` as practice: it is recorded, but never changes the streak |
+| `unlimitedLevels: 'run'`, `runLevels: { levels: 5, perLevel: 3 }` | Unlimited levels rise with the run (solves in a row): every three solves goes up a level, and a miss starts over. Replaces the concept and level picker with a run banner, and Stats shows current and best run |
+
+The core also resumes an Unlimited puzzle that was started but not finished.
+
+### Hooks for a game's own pieces
+
+Passed to `Fables.start` alongside `render` and `check`. Each gets `{ store, records, day, el }`, where `el(tag, attrs, ...children)` makes elements, and returns elements to insert.
+
+| Hook | Where it shows |
+| --- | --- |
+| `intro: { today, unlimited }` | A first-visit card on that tab, with **Got it** (HTML text or elements) |
+| `stats(ctx)` | Extra sections on Stats (DataFables: points, this week, skills) |
+| `help(ctx)` | Extra sections on Help (DataFables: class code, difficulty log, export and import, reminder) |
+| `resultNote(puzzle, { solved, track, set })` | Extra lines in the result, under the verdict |
+| `tagRecord()` | Extra fields on every record (DataFables: the class code) |
+
 ### Difficulty
 
 `Fables.difficultyScore(inputs, weights)` turns a game's own structural inputs (line count, concepts combined, nesting depth, and so on) into a score. Later, `Fables.adjustDifficulty(score, stats, hook)` lets real player data (plays, solve rate, mean tries) correct it once a puzzle has enough plays.

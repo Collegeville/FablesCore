@@ -1,5 +1,7 @@
 // Turns ExampleFables' bank into multi-part days for the browser tests.
 (function () {
+  const startWithIcon = window.Fables.start;
+  window.Fables.start = (options) => startWithIcon({ ...options, game: { ...options.game, icon: '../../../example/icons/icon.svg' } });
   const source = window.EXAMPLE_BANK;
   const limits = [4, 2, 2];
   const labels = ['Find', 'Audit', 'Rule'];

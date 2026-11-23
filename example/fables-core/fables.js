@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.2.0';
+  const VERSION = '0.3.0';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -82,7 +82,9 @@
   // across the whole bank, never reused) and a `serial` (the number players see, in sequence within
   // its track). Daily puzzles also have a `date`; unlimited puzzles have a `concept` and `level`.
 
-  function validateBank(bank) {
+  // `ramp: false` skips the weekly-ramp rules (Sunday capstones, the Monday-to-Saturday climb),
+  // for a game that has no ramp yet.
+  function validateBank(bank, { ramp = true } = {}) {
     const errors = [];
     if (!bank || typeof bank !== 'object') return { ok: false, errors: ['The puzzle bank is missing.'] };
     const ids = new Map();
@@ -119,7 +121,7 @@
       const sorted = [...serials].sort((a, b) => a - b);
       if (sorted.some((s, i) => i > 0 && s !== sorted[i - 1] + 1)) errors.push(`${track}: serial numbers must run in sequence with no gaps`);
     }
-    if (Array.isArray(tracks.daily)) validateDaily(tracks.daily, errors);
+    if (Array.isArray(tracks.daily)) validateDaily(tracks.daily, errors, ramp);
     if (Array.isArray(tracks.unlimited)) {
       for (const [i, p] of tracks.unlimited.entries()) {
         if (typeof p.concept !== 'string') errors.push(`unlimited[${i}]: missing concept`);
@@ -129,7 +131,7 @@
     return { ok: errors.length === 0, errors };
   }
 
-  function validateDaily(daily, errors) {
+  function validateDaily(daily, errors, ramp = true) {
     const dates = new Set();
     for (const [i, p] of daily.entries()) {
       const where = `daily[${i}]`;
@@ -139,10 +141,12 @@
       }
       if (dates.has(p.date)) errors.push(`${where}: two puzzles on ${p.date}`);
       dates.add(p.date);
+      if (!ramp) continue;
       const slot = rampSlot(p.date);
       if (slot.capstone && !p.capstone) errors.push(`${where}: ${p.date} is a Sunday, so it must be a capstone`);
       if (!slot.capstone && p.capstone) errors.push(`${where}: capstones belong on Sundays, not ${p.date}`);
     }
+    if (!ramp) return;
     const valid = daily.filter((p) => isValidDate(p.date) && Number.isInteger(p.serial));
     const byDate = [...valid].sort((a, b) => dayNumber(a.date) - dayNumber(b.date));
     if (byDate.some((p, i) => i > 0 && p.serial < byDate[i - 1].serial)) errors.push('daily: serial numbers must increase with the date');
@@ -215,6 +219,46 @@
       ? pool[Math.floor(random() * pool.length)]
       : pool.reduce((a, b) => (b.serial < a.serial ? b : a));
     return { puzzle, repeat: !fresh.length };
+  }
+
+  // Unlimited runs: solves in a row, in the order played. A miss starts a new run.
+  function unlimitedRuns(records) {
+    const list = records.filter((r) => r.track === 'unlimited').sort((a, b) => String(a.at ?? '').localeCompare(String(b.at ?? '')));
+    let current = 0;
+    let best = 0;
+    for (const r of list) {
+      current = r.solved ? current + 1 : 0;
+      best = Math.max(best, current);
+    }
+    return { current, best, played: list.length };
+  }
+
+  // For games whose Unlimited level rises with the run: every `perLevel` solves goes up a level.
+  const levelForRun = (run, { levels = 5, perLevel = 3 } = {}) => Math.min(levels, 1 + Math.floor(run / perLevel));
+
+  // The puzzle provider: how the core gets puzzles. A game with all its puzzles in one bank needs
+  // nothing more; a game that loads puzzles from files day by day (DataFables) supplies its own
+  // provider with the same async methods.
+  function bankProvider(bank) {
+    const unlimited = bank.unlimited ?? [];
+    return {
+      daily: async (date) => dailyFor(bank, date),
+      byId: async (id) => findPuzzle(bank, id),
+      dates: async () => (bank.daily ?? []).map((p) => p.date),
+      concepts: () => [...new Set(unlimited.map((p) => p.concept))],
+      levels: () => [...new Set(unlimited.map((p) => p.level))].sort((a, b) => a - b),
+      // { concept, level, mode, avoid } -> { puzzle, notice? } or null. `avoid` holds IDs to skip
+      // if possible: solved ones in the picker, played ones in a run.
+      async unlimited({ concept = null, level = null, mode = 'next', avoid = new Set() }) {
+        const pick = pickUnlimited(unlimited, avoid, { concept, level, mode });
+        if (pick && !pick.repeat) return { puzzle: pick.puzzle };
+        if (level != null && concept == null) {
+          const any = pickUnlimited(unlimited, avoid, { mode });
+          if (any && !any.repeat) return { puzzle: any.puzzle, notice: `Level ${level} is used up for now, so this one is level ${any.puzzle.level}.` };
+        }
+        return pick ? { puzzle: pick.puzzle, notice: 'You have played every puzzle that matches, so this is a repeat.' } : null;
+      },
+    };
   }
 
   // ---------------------------------------------------------------- progress and streaks
@@ -492,60 +536,133 @@
   // `render(puzzle, el, play)` to draw a puzzle, and `check(puzzle, answer)` returning
   // { correct, mark }. The core does the rest.
   function start(options) {
-    const { game, bank, render, check } = options;
+    const { game, render, check } = options;
+    const bank = options.bank ?? null;
     const rowsFor = options.rows ?? defaultRows;
     const params = new URLSearchParams(root.location.search);
     const day = isValidDate(params.get('date')) ? params.get('date') : today(new Date(), game.timeZone);
     const maxAttempts = game.maxAttempts ?? 3;
+    const ramp = game.weeklyRamp !== false;
+    const runMode = game.unlimitedLevels === 'run';
     // A game may plug in its own storage (see README, "Store adapter"); otherwise the core's.
     const store = options.store ?? createStore(game.id, undefined, options.migrations);
     const shell = mountShell(game);
+    const provider = options.provider ?? bankProvider(bank ?? {});
+    const ctx = () => ({ store, records: store.records(), day, el: h });
 
-    const { ok, errors } = validateBank(bank);
-    if (!ok) {
-      console.error('FablesCore: puzzle bank problems', errors);
+    const refuse = (errors) => {
+      console.error('FablesCore: puzzle problems', errors);
       shell.main.replaceChildren(h('p', { class: 'fables-notice' }, "This game's puzzles failed their checks, so it can't start. Details are in the browser console."));
-      return { store, errors };
+    };
+    if (bank) {
+      const { ok, errors } = validateBank(bank, { ramp });
+      if (!ok) {
+        refuse(errors);
+        return { store, errors };
+      }
     }
+    // Puzzles from a provider are checked one at a time as they load.
+    const checkOne = (puzzle, track) => {
+      if (bank || !puzzle) return true;
+      const { ok, errors } = validateBank({ [track]: [puzzle] }, { ramp });
+      if (!ok) refuse(errors);
+      return ok;
+    };
 
     let unlimitedFilter = { concept: null, level: null, mode: 'next' };
     let current = null; // the unlimited puzzle on screen, kept across tab switches
+    let unlimitedNotice = null;
+    let viewingPart = params.get('t') ? params.get('t').charCodeAt(0) - 97 : null;
+    let linkedId = params.get('p'); // a shared link (?p=<id>) opens that puzzle once
+    const archiveDate = game.archive && isValidDate(params.get('archive')) && dayNumber(params.get('archive')) < dayNumber(day)
+      ? params.get('archive') : null;
+    let nav = 0; // bumped on every route, so a slow load never draws over a newer view
 
-    // A shared link (?p=<id>) opens that puzzle once; after that the tabs behave normally.
-    let linked = params.get('p') ? findPuzzle(bank, params.get('p')) : null;
-    let viewingPart = null; // which part of today's multi-part puzzle is on screen
-    if (linked && linked.part !== undefined) viewingPart = linked.part;
-    else if (params.get('t')) viewingPart = params.get('t').charCodeAt(0) - 97;
-    if (linked && linked.track === 'unlimited') {
-      current = linked.puzzle;
-      linked = null;
-      if (root.location.hash !== '#unlimited') root.history.replaceState(null, '', '#unlimited');
+    if (game.archive) {
+      shell.tabs.querySelector('[data-view="unlimited"]').after(h('a', { href: '#archive', 'data-view': 'archive' }, 'Archive'));
     }
 
-    function route() {
-      const view = (root.location.hash || '#today').slice(1);
-      for (const a of shell.tabs.querySelectorAll('a')) a.toggleAttribute('aria-current', a.dataset.view === view);
-      if (view === 'unlimited') return showUnlimited();
+    async function route() {
+      const token = ++nav;
+      let view = (root.location.hash || '#today').slice(1);
+      if (linkedId) {
+        const found = await provider.byId(linkedId);
+        if (token !== nav) return;
+        linkedId = null;
+        if (found?.track === 'unlimited') {
+          current = found.puzzle;
+          if (view !== 'unlimited') root.history.replaceState(null, '', '#unlimited');
+          view = 'unlimited';
+        } else if (found) {
+          if (found.part !== undefined) viewingPart = found.part;
+          linkedDaily = found.puzzle;
+        }
+      }
+      for (const a of shell.tabs.querySelectorAll('a')) {
+        // In archive practice the Archive tab is the current one, not Today.
+        const shown = view === 'today' && archiveDate ? 'archive' : view;
+        a.toggleAttribute('aria-current', a.dataset.view === shown);
+      }
+      // In archive practice, Today goes back to the real today.
+      const todayTab = shell.tabs.querySelector('[data-view="today"]');
+      if (archiveDate) {
+        const url = new URL(root.location.href);
+        url.searchParams.delete('archive');
+        url.hash = '';
+        todayTab.href = url.href;
+      }
+      if (view === 'unlimited') return showUnlimited(token);
+      if (view === 'archive' && game.archive) return showArchive(token);
       if (view === 'stats') return showStats();
       if (view === 'help') return showHelp();
-      return showToday();
+      return showToday(token);
+    }
+    let linkedDaily = null;
+
+    // A first-visit card for a tab, shown once with a "Got it" button.
+    function intro(tab) {
+      const content = options.intro?.[tab];
+      if (!content || store.loadState(`__intro:${tab}`)) return null;
+      const card = h('section', { class: 'fables-intro', 'aria-label': 'How to play' },
+        typeof content === 'string' ? h('div', { html: content }) : content,
+        h('button', {
+          type: 'button',
+          class: 'fables-button secondary',
+          onclick: () => {
+            store.saveState(`__intro:${tab}`, true);
+            card.remove();
+          },
+        }, 'Got it'));
+      return card;
     }
 
-    function showToday() {
-      const fromLink = linked;
-      linked = null;
-      const puzzle = fromLink ? fromLink.puzzle : dailyFor(bank, day);
+    const loading = () => shell.main.replaceChildren(h('p', { class: 'fables-notice' }, 'Loading…'));
+
+    async function showToday(token) {
+      const date = archiveDate ?? day;
+      let puzzle = linkedDaily;
+      linkedDaily = null;
+      if (!puzzle) {
+        loading();
+        puzzle = await provider.daily(date);
+        if (token !== nav) return undefined;
+      }
+      if (!checkOne(puzzle, 'daily')) return undefined;
       if (!puzzle) {
         shell.main.replaceChildren(h('section', { class: 'fables-empty' },
-          h('h2', {}, 'No puzzle today'),
-          h('p', {}, 'There is no daily puzzle scheduled for this date. Unlimited mode always has more.'),
+          h('h2', {}, archiveDate ? 'No puzzle that day' : 'No puzzle today'),
+          h('p', {}, 'There is no daily puzzle for this date. Unlimited mode always has more.'),
           h('p', {}, h('a', { href: '#unlimited' }, 'Play Unlimited'))));
         return undefined;
       }
       const slot = rampSlot(puzzle.date);
-      const label = slot.capstone ? 'Sunday capstone' : `${slot.weekday} · level ${slot.level} of 6`;
-      if (puzzle.parts) return showParts(puzzle, label);
-      return play(puzzle, 'daily', `#${puzzle.serial} · ${shortDate(puzzle.date)} · ${label}`);
+      const label = !ramp ? WEEKDAYS[weekday(puzzle.date)] : slot.capstone ? 'Sunday capstone' : `${slot.weekday} · level ${slot.level} of 6`;
+      const practice = puzzle.date !== day && h('p', { class: 'fables-practice' },
+        `Practice: ${shortDate(puzzle.date)} is from the archive, so it doesn't change your streak. `,
+        h('a', { href: shell.tabs.querySelector('[data-view="today"]').href }, 'Back to today'));
+      const before = [intro('today'), practice].filter(Boolean);
+      if (puzzle.parts) return showParts(puzzle, label, before);
+      return play(puzzle, 'daily', `#${puzzle.serial} · ${shortDate(puzzle.date)} · ${label}`, before);
     }
 
     // ---- multi-part days: parts are played in order, each unlocking when the one before is done.
@@ -553,25 +670,25 @@
 
     function partSteps(set) {
       const done = set.parts.map(partDone);
-      const current = done.findIndex((d) => !d);
+      const firstOpen = done.findIndex((d) => !d);
       return set.parts.map((part, k) => {
         let state = 'locked';
         if (done[k]) state = done[k].solved ? 'solved' : 'missed';
-        else if (k === current) state = 'current';
+        else if (k === firstOpen) state = 'current';
         return { part, k, letter: partLetter(k), state, open: state !== 'locked' };
       });
     }
 
-    function showParts(set, label) {
+    function showParts(set, label, before = []) {
       const steps = partSteps(set);
       const open = steps.filter((s) => s.open).map((s) => s.k);
       const firstUnfinished = steps.find((s) => s.state === 'current');
       const k = open.includes(viewingPart) ? viewingPart : firstUnfinished ? firstUnfinished.k : set.parts.length - 1;
       viewingPart = k;
-      const nav = stepsNav(set, k);
+      const navEl = stepsNav(set, k);
       const part = set.parts[k];
       const kicker = `#${set.serial}${partLetter(k)} · ${shortDate(set.date)}${part.label ? ` · ${part.label}` : ''} · ${label}`;
-      return play(part, 'daily', kicker, nav, { set, k, nav });
+      return play(part, 'daily', kicker, [...before, navEl], { set, k, nav: navEl, label, before });
     }
 
     function stepsNav(set, k) {
@@ -586,53 +703,129 @@
           'aria-label': `Part ${st.letter}${st.part.label ? `, ${st.part.label}` : ''}: ${STATE[st.state]}`,
           onclick: () => {
             viewingPart = st.k;
-            showToday();
+            linkedDaily = set;
+            showToday(++nav);
           },
         }, h('span', { class: 'fables-step-letter' }, st.letter), h('span', { 'aria-hidden': 'true' }, GLYPH[st.state])))));
     }
 
-    function showUnlimited() {
-      if (!current) current = pickUnlimited(bank.unlimited ?? [], store.solvedIds(), unlimitedFilter)?.puzzle ?? null;
-      const concepts = [...new Set((bank.unlimited ?? []).map((p) => p.concept))];
-      const levels = [...new Set((bank.unlimited ?? []).map((p) => p.level))].sort((a, b) => a - b);
-      const labels = game.conceptLabels ?? {};
-      const select = (name, label, values, value, text) => h('label', {}, label, ' ',
-        h('select', {
-          name,
-          onchange: (e) => {
-            const v = e.target.value;
-            unlimitedFilter = { ...unlimitedFilter, [name]: v === '' ? null : name === 'level' ? Number(v) : v };
-            current = null;
-            showUnlimited();
-          },
-        }, h('option', { value: '' }, name === 'concept' ? 'Any concept' : 'Any level'),
-        values.map((v) => h('option', { value: v, selected: value === v }, text(v)))));
-      const picker = h('form', { class: 'fables-picker', onsubmit: (e) => e.preventDefault() },
-        select('concept', 'Concept', concepts, unlimitedFilter.concept, (v) => labels[v] ?? v),
-        select('level', 'Level', levels, unlimitedFilter.level, (v) => `Level ${v}`),
-        h('label', {}, h('input', {
-          type: 'checkbox',
-          checked: unlimitedFilter.mode === 'random',
-          onchange: (e) => {
-            unlimitedFilter = { ...unlimitedFilter, mode: e.target.checked ? 'random' : 'next' };
-            current = null;
-            showUnlimited();
-          },
-        }), ' Random mix'));
+    // ---- Unlimited
+    const CURRENT_KEY = '__unlimited:current';
+    const finishedIds = () => new Set(store.records().filter((r) => r.track === 'unlimited').map((r) => r.id));
+
+    async function chooseUnlimited() {
+      // Resume a puzzle that was started and not finished.
+      const saved = store.loadState(CURRENT_KEY);
+      if (saved && !finishedIds().has(saved)) {
+        const found = await provider.byId(saved);
+        if (found?.track === 'unlimited') return { puzzle: found.puzzle };
+      }
+      if (runMode) {
+        const level = levelForRun(unlimitedRuns(store.records()).current, game.runLevels);
+        return provider.unlimited({ level, mode: 'next', avoid: finishedIds() });
+      }
+      return provider.unlimited({ ...unlimitedFilter, avoid: store.solvedIds() });
+    }
+
+    async function showUnlimited(token) {
       if (!current) {
-        shell.main.replaceChildren(picker, h('p', { class: 'fables-notice' }, 'No unlimited puzzles match these choices.'));
+        loading();
+        const pick = await chooseUnlimited();
+        if (token !== nav) return;
+        current = pick?.puzzle ?? null;
+        unlimitedNotice = pick?.notice ?? null;
+        if (current) store.saveState(CURRENT_KEY, current.id);
+      }
+      if (!checkOne(current, 'unlimited')) return;
+      const labels = game.conceptLabels ?? {};
+      let header;
+      if (runMode) {
+        const r = unlimitedRuns(store.records());
+        const level = levelForRun(r.current, game.runLevels);
+        header = h('div', { class: 'fables-picker fables-run' },
+          h('p', {}, h('strong', {}, `Run ${r.current}`), ` · best ${r.best} · level ${level} of ${game.runLevels?.levels ?? 5}. `,
+            'Unlimited runs are separate from your daily streak.'),
+          unlimitedNotice && h('p', { class: 'fables-notice' }, unlimitedNotice));
+      } else {
+        const select = (name, label, values, value, text) => h('label', {}, label, ' ',
+          h('select', {
+            name,
+            onchange: (e) => {
+              const v = e.target.value;
+              unlimitedFilter = { ...unlimitedFilter, [name]: v === '' ? null : name === 'level' ? Number(v) : v };
+              current = null;
+              store.saveState(CURRENT_KEY, null); // a new choice starts fresh rather than resuming
+              showUnlimited(++nav);
+            },
+          }, h('option', { value: '' }, name === 'concept' ? 'Any concept' : 'Any level'),
+          values.map((v) => h('option', { value: v, selected: value === v }, text(v)))));
+        header = h('form', { class: 'fables-picker', onsubmit: (e) => e.preventDefault() },
+          select('concept', 'Concept', provider.concepts?.() ?? [], unlimitedFilter.concept, (v) => labels[v] ?? v),
+          select('level', 'Level', provider.levels?.() ?? [], unlimitedFilter.level, (v) => `Level ${v}`),
+          h('label', {}, h('input', {
+            type: 'checkbox',
+            checked: unlimitedFilter.mode === 'random',
+            onchange: (e) => {
+              unlimitedFilter = { ...unlimitedFilter, mode: e.target.checked ? 'random' : 'next' };
+              current = null;
+              store.saveState(CURRENT_KEY, null);
+              showUnlimited(++nav);
+            },
+          }), ' Random mix'),
+          unlimitedNotice && h('p', { class: 'fables-notice' }, unlimitedNotice));
+      }
+      if (!current) {
+        shell.main.replaceChildren(...[intro('unlimited'), header, h('p', { class: 'fables-notice' }, runMode
+          ? "You've played every Unlimited puzzle there is. New ones arrive with the next update."
+          : 'No unlimited puzzles match these choices.')].filter(Boolean));
         return;
       }
-      const concept = labels[current.concept] ?? current.concept;
-      play(current, 'unlimited', `U-${current.serial} · ${concept} · level ${current.level}`, picker);
+      const concept = current.concept ? `${labels[current.concept] ?? current.concept} · ` : '';
+      play(current, 'unlimited', `U-${current.serial} · ${concept}level ${current.level}`, [intro('unlimited'), header].filter(Boolean));
     }
 
     function nextUnlimited() {
-      const solved = store.solvedIds();
-      solved.add(current.id); // never hand back the puzzle just finished
-      current = pickUnlimited(bank.unlimited ?? [], solved, unlimitedFilter)?.puzzle ?? null;
+      current = null;
+      store.saveState(CURRENT_KEY, null);
       if (root.location.hash !== '#unlimited') root.location.hash = '#unlimited';
-      else showUnlimited();
+      else showUnlimited(++nav);
+      root.scrollTo({ top: 0 });
+    }
+
+    // ---- Archive: past days, played as practice.
+    async function showArchive(token) {
+      loading();
+      const all = await provider.dates();
+      if (token !== nav) return;
+      const days = game.archive.days ?? 60;
+      const past = [...new Set(all)].filter((d) => dayNumber(d) < dayNumber(day)).sort((a, b) => dayNumber(b) - dayNumber(a)).slice(0, days);
+      const records = store.records().filter((r) => r.track === 'daily');
+      const statusOf = (d) => {
+        const mine = records.filter((r) => r.date === d);
+        if (!mine.length) return { text: 'Not played', cls: 'unplayed' };
+        const parts = mine[0].parts;
+        const solved = mine.filter((r) => r.solved).length;
+        if (parts && mine.length < parts) return { text: `${mine.length} of ${parts} played`, cls: 'progress' };
+        if (parts) return { text: `Played · ${solved} of ${parts} solved`, cls: solved ? 'won' : 'lost' };
+        return mine[0].solved ? { text: `Solved in ${mine[0].attempts}`, cls: 'won' } : { text: 'Missed', cls: 'lost' };
+      };
+      const link = (d) => {
+        const url = new URL(root.location.href);
+        url.searchParams.set('archive', d);
+        url.searchParams.delete('p');
+        url.searchParams.delete('t');
+        url.hash = '';
+        return url.href;
+      };
+      shell.main.replaceChildren(
+        h('h2', {}, 'Archive'),
+        h('p', { class: 'fables-notice' }, 'Past puzzles are practice. They build skill but never change your streak.'),
+        past.length
+          ? h('ol', { class: 'fables-archive' }, past.map((d) => {
+            const s = statusOf(d);
+            return h('li', {}, h('a', { href: link(d) }, h('span', {}, `${WEEKDAYS[weekday(d)].slice(0, 3)} ${shortDate(d)}`), h('span', { class: `fables-status ${s.cls}` }, s.text)));
+          }))
+          : h('p', { class: 'fables-notice' }, 'No past puzzles yet.'));
     }
 
     // One puzzle on screen: the game draws it, the core checks, records and announces.
@@ -648,7 +841,7 @@
         puzzle.title && h('h2', {}, puzzle.title),
         h('div', { class: 'fables-pips', 'aria-hidden': 'true' },
           Array.from({ length: maxAttempts }, (_, i) => h('span', { class: `fables-pip${i < state.answers.length ? ` ${state.marks[i]}` : ''}` }))));
-      shell.main.replaceChildren(...[before, head, area, result].filter(Boolean));
+      shell.main.replaceChildren(...[...[].concat(before ?? []), head, area, result].filter(Boolean));
 
       const done = () => state.solved || state.answers.length >= maxAttempts;
       const draw = () => {
@@ -675,15 +868,15 @@
             id: puzzle.id, serial: day0.serial, track,
             date: track === 'daily' ? day0.date : day,
             onTime: track === 'daily' ? day0.date === day : undefined,
-            solved: !!state.solved, attempts: state.answers.length, maxAttempts,
+            solved: !!state.solved, attempts: state.answers.length, maxAttempts, at: new Date().toISOString(),
             ...(inSet && { set: inSet.set.id, part: partLetter(inSet.k), parts: inSet.set.parts.length }),
             ...(options.tagRecord && options.tagRecord()),
           });
           // Redraw the a/b/c steps so the next part unlocks.
           if (inSet) {
-            const nav = stepsNav(inSet.set, inSet.k);
-            inSet.nav.replaceWith(nav);
-            inSet.nav = nav;
+            const navEl = stepsNav(inSet.set, inSet.k);
+            inSet.nav.replaceWith(navEl);
+            inSet.nav = navEl;
           }
         }
         head.querySelectorAll('.fables-pip').forEach((pip, i) => {
@@ -744,6 +937,7 @@
           h('p', { class: 'fables-verdict' },
             h('span', { class: 'fables-icon', 'aria-hidden': 'true' }, state.solved ? '✓' : '✕'),
             h('span', {}, verdict)),
+          ...[].concat(options.resultNote?.(puzzle, { solved: !!state.solved, track, set: inSet?.set ?? null }) ?? []),
           onTime && setDone && h('p', { class: 'fables-streak' }, `Streak: ${plural(streak, 'day')}`),
           puzzle.explanation && h('p', { class: 'fables-explanation' }, puzzle.explanation),
           puzzle.moral && h('p', { class: 'fables-moral' }, h('span', {}, 'Moral: '), puzzle.moral),
@@ -752,7 +946,8 @@
             class: 'fables-button',
             onclick: () => {
               viewingPart = nextPart;
-              showToday();
+              linkedDaily = inSet.set;
+              showToday(++nav);
               root.scrollTo({ top: 0 });
             },
           }, `Next: part ${partLetter(nextPart)}${inSet.set.parts[nextPart].label ? `, ${inSet.set.parts[nextPart].label}` : ''} →`)),
@@ -831,25 +1026,28 @@
           status));
     }
 
-    // The longest guess limit anywhere in the bank, for the Stats chart.
-    const mostAttempts = Math.max(maxAttempts, ...[...(bank.daily ?? []), ...(bank.unlimited ?? [])]
-      .flatMap((p) => [p, ...(p.parts ?? [])]).map((p) => p.maxAttempts ?? 0));
+    // The longest guess limit, for the Stats chart: from the bank, or what the player has met.
+    const mostAttempts = () => Math.max(maxAttempts,
+      ...(bank ? [...(bank.daily ?? []), ...(bank.unlimited ?? [])].flatMap((p) => [p, ...(p.parts ?? [])]).map((p) => p.maxAttempts ?? 0) : []),
+      ...store.records().map((r) => r.maxAttempts ?? 0));
 
     function showStats() {
       const records = store.records();
       const daily = trackStats(records, 'daily');
       const unlimited = trackStats(records, 'unlimited');
+      const runs = unlimitedRuns(records);
+      const longest = mostAttempts();
       const tile = (value, label) => h('div', { class: 'fables-tile' }, h('span', { class: 'fables-tile-value' }, String(value)), h('span', { class: 'fables-tile-label' }, label));
       const dist = (s) => {
         const max = Math.max(1, ...Object.values(s.distribution));
         return h('ol', { class: 'fables-dist', 'aria-label': 'Solved by number of tries' },
-          Array.from({ length: mostAttempts }, (_, i) => {
+          Array.from({ length: longest }, (_, i) => {
             const n = s.distribution[i + 1] ?? 0;
             return h('li', {}, h('span', {}, String(i + 1)),
               h('span', { class: 'fables-bar', style: `width:${Math.max(4, (100 * n) / max)}%` }), h('span', {}, String(n)));
           }));
       };
-      shell.main.replaceChildren(
+      shell.main.replaceChildren(...[
         h('h2', {}, 'Daily'),
         h('div', { class: 'fables-tiles' },
           tile(daily.played, 'Played'), tile(`${daily.winRate}%`, 'Solved'),
@@ -857,18 +1055,30 @@
         dist(daily),
         h('h2', {}, 'Unlimited'),
         h('p', { class: 'fables-notice' }, 'Unlimited puzzles have their own numbers and never change your daily streak.'),
-        h('div', { class: 'fables-tiles' }, tile(unlimited.played, 'Played'), tile(`${unlimited.winRate}%`, 'Solved')),
+        runMode
+          ? h('div', { class: 'fables-tiles' }, tile(runs.current, 'Current run'), tile(runs.best, 'Best run'), tile(unlimited.played, 'Played'), tile(`${unlimited.winRate}%`, 'Solved'))
+          : h('div', { class: 'fables-tiles' }, tile(unlimited.played, 'Played'), tile(`${unlimited.winRate}%`, 'Solved')),
         dist(unlimited),
-        h('p', { class: 'fables-notice' }, 'Your progress is saved on this device only. Nothing is sent anywhere.'));
+        ...[].concat(options.stats?.(ctx()) ?? []),
+        h('p', { class: 'fables-notice' }, 'Your progress is saved on this device only. Nothing is sent anywhere.'),
+      ].filter(Boolean));
     }
 
     function showHelp() {
       const settings = store.settings();
-      shell.main.replaceChildren(
+      const week = ramp
+        ? 'A new daily puzzle arrives every day. They get harder from Monday to Saturday, and Sunday brings a capstone that mixes the week’s ideas. Finish the day’s puzzle, solved or not, to keep your streak going.'
+        : 'A new daily puzzle arrives every day. Finish it, solved or not, to keep your streak going.';
+      const unlimitedText = runMode
+        ? ' Unlimited has as many extra puzzles as you like. Solve them in a row to build a run; the level rises as the run grows. Runs never touch your daily streak.'
+        : ' Unlimited mode has as many extra puzzles as you like, with their own numbers, and never touches your streak.';
+      shell.main.replaceChildren(...[
         h('section', { class: 'fables-help', html: game.help ?? '' }),
         h('section', { class: 'fables-help' },
-          h('h2', {}, 'How the week works'),
-          h('p', {}, 'A new daily puzzle arrives every day. They get harder from Monday to Saturday, and Sunday brings a capstone that mixes the week’s ideas. Finish the day’s puzzle, solved or not, to keep your streak going. Unlimited mode has as many extra puzzles as you like, with their own numbers, and never touches your streak.'),
+          h('h2', {}, ramp ? 'How the week works' : 'Daily and Unlimited'),
+          h('p', {}, week + unlimitedText + (game.archive ? ' Past days are in the Archive as practice.' : ''))),
+        ...[].concat(options.help?.(ctx()) ?? []),
+        h('section', { class: 'fables-help' },
           h('h2', {}, 'Settings'),
           h('p', {}, h('button', {
             type: 'button',
@@ -881,12 +1091,13 @@
               e.target.textContent = `Sound: ${next.sound ? 'on' : 'off'}`;
               if (next.sound) chime();
             },
-          }, `Sound: ${settings.sound ? 'on' : 'off'}`))));
+          }, `Sound: ${settings.sound ? 'on' : 'off'}`))),
+      ].filter(Boolean));
     }
 
     root.addEventListener('hashchange', route);
     route();
-    return { store, day };
+    return { store, day, rerender: () => route() };
   }
 
   // The page shell: header with icon and name, tabs, main area, a screen-reader live region, and
@@ -934,6 +1145,10 @@
     difficultyScore, adjustDifficulty,
     // unlimited
     pickUnlimited,
+    // unlimited runs and providers
+    unlimitedRuns, levelForRun, bankProvider,
+    // browser helper for games' hooks
+    el: (...args) => h(...args),
     // progress
     createStore, memoryStorage, streakDays, currentStreak, maxStreak, trackStats,
     // sharing
