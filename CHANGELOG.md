@@ -2,6 +2,11 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.3.1
+
+- **Fix:** Daily stats (played, solved, the guess chart) count only puzzles played on their own day. Archive practice no longer inflates them, matching the streak and DataFables' long-standing rule.
+- **Fix:** the practice banner's "Back to today" link is readable with every game color (it fell just short of the contrast minimum with DataFables' teal), and it no longer carries the archive day's part or puzzle link.
+
 ## 0.3.0
 
 Toward moving DataFables onto the core (see DataFables' docs/MIGRATION.md).

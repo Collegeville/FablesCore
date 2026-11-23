@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.3.0';
+  const VERSION = '0.3.1';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -311,8 +311,10 @@
     return best;
   }
 
+  // Daily totals count puzzles played on their own day; archive practice builds skill but, like
+  // the streak, is not counted here.
   function trackStats(records, track) {
-    const mine = records.filter((r) => r.track === track);
+    const mine = records.filter((r) => r.track === track && (track !== 'daily' || r.onTime !== false));
     const solved = mine.filter((r) => r.solved);
     const distribution = {};
     for (const r of solved) distribution[r.attempts] = (distribution[r.attempts] ?? 0) + 1;
@@ -607,7 +609,7 @@
       const todayTab = shell.tabs.querySelector('[data-view="today"]');
       if (archiveDate) {
         const url = new URL(root.location.href);
-        url.searchParams.delete('archive');
+        for (const key of ['archive', 't', 'p']) url.searchParams.delete(key);
         url.hash = '';
         todayTab.href = url.href;
       }

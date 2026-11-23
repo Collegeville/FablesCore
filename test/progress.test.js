@@ -65,3 +65,8 @@ test('blocked storage falls back to memory without throwing', () => {
   assert.equal(store.record(rec('2026-11-23')), false);
   assert.deepEqual(store.records(), []);
 });
+
+test('daily stats leave out archive practice; unlimited counts everything', () => {
+  const records = [rec('2026-11-20'), { ...rec('2026-11-19'), onTime: false }, { ...rec('2026-11-18', false), onTime: false }];
+  assert.deepEqual(F.trackStats(records, 'daily'), { played: 1, solved: 1, winRate: 100, distribution: { 1: 1 } });
+});
