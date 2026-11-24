@@ -1,6 +1,14 @@
 # FablesCore
 
-The shared framework for the Fables games: small daily puzzle games that keep people sharp at the skills AI now does quickly, so they can still judge its work. DataFables is the first; CodeFables, ScaleFables, TestFables and UDXFables are planned.
+The shared framework for the Fables games: small daily puzzle games that keep people sharp at the skills AI now does quickly, so they can still judge its work. Five games are live, and all of them run on FablesCore:
+
+| Game | What it asks | For |
+| --- | --- | --- |
+| [DataFables](https://collegeville.github.io/DataFables/) | Find what's wrong with the table, or decide that nothing is. | Students and anyone who works with data |
+| [CodeFables](https://collegeville.github.io/CodeFables/) | Read short Python snippets, predict what they do, and spot what's wrong. | Beginning programmers (CS1) and anyone who judges code |
+| [ScaleFables](https://collegeville.github.io/ScaleFables/) | How does it grow, and how does it speed up? | Students past CS1 and anyone who reasons about performance |
+| [TestFables](https://collegeville.github.io/TestFables/) | When can you trust a green checkmark? | Undergraduate students who know basic programming |
+| [UDXFables](https://collegeville.github.io/UDXFables/) | Who is it for, and what do they need right now? For people and for agents. | Anyone who builds software, tools, or communities |
 
 FablesCore holds everything the games have in common, so it is improved once and every game gets it:
 
@@ -171,7 +179,7 @@ Passed to `Fables.start` alongside `render` and `check`. Each gets `{ store, rec
 
 - Each game is a topic word plus Fables in CamelCase: DataFables, ScaleFables. The repo name, the page address (collegeville.github.io/ScaleFables) and the on-screen title all match exactly.
 - Check a new name for collisions before using it.
-- Every game repo gets the GitHub topic **fables-game**, and this repo gets **fables-core**. Add a subject topic too, such as `data`, `code`, `testing` or `scaling`. Then [this search](https://github.com/orgs/Collegeville/repositories?q=topic%3Afables-game) lists the whole family.
+- Every game repo gets the GitHub topic **fables-game**, and this repo gets **fables-core**. Add a subject topic too, such as `data`, `code`, `scaling`, `testing` or `experience`. Then [this search](https://github.com/orgs/Collegeville/repositories?q=topic%3Afables-game) lists the whole family.
 - All Fables repos live side by side in the Collegeville organization. Revisit the flat layout only if it passes about fifty repos.
 
 ## Icons
