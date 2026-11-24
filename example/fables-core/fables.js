@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.4.0';
+  const VERSION = '0.4.1';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -730,7 +730,16 @@
         const level = levelForRun(unlimitedRuns(store.records()).current, game.runLevels);
         return provider.unlimited({ level, mode: 'next', avoid: finishedIds() });
       }
-      return provider.unlimited({ ...unlimitedFilter, avoid: store.solvedIds() });
+      // Prefer puzzles not played yet, then ones missed, and repeat solved ones only after that.
+      const played = finishedIds();
+      const first = await provider.unlimited({ ...unlimitedFilter, avoid: played });
+      if (!first?.puzzle || !played.has(first.puzzle.id)) return first;
+      const solved = store.solvedIds();
+      const missed = await provider.unlimited({ ...unlimitedFilter, avoid: solved });
+      if (missed?.puzzle && !solved.has(missed.puzzle.id)) {
+        return { puzzle: missed.puzzle, notice: "You've played every puzzle that matches, so here is one you missed, to try again." };
+      }
+      return first;
     }
 
     async function showUnlimited(token) {
@@ -740,7 +749,11 @@
         if (token !== nav) return;
         current = pick?.puzzle ?? null;
         unlimitedNotice = pick?.notice ?? null;
-        if (current) store.saveState(CURRENT_KEY, current.id);
+        if (current) {
+          // A finished puzzle served again starts fresh, so it can be played rather than shown settled.
+          if (finishedIds().has(current.id)) store.saveState(current.id, null);
+          store.saveState(CURRENT_KEY, current.id);
+        }
       }
       if (!checkOne(current, 'unlimited')) return;
       const labels = game.conceptLabels ?? {};

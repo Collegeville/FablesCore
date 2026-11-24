@@ -2,6 +2,11 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.4.1
+
+- **Fix:** in Unlimited, **Next puzzle** after a missed puzzle served the same puzzle again, already finished, so the button seemed to do nothing (UDXFables issue #1). Unlimited now prefers puzzles not played yet, then brings back missed ones, and repeats solved ones only after that.
+- **Fix:** a finished Unlimited puzzle that comes around again (a missed one, or a repeat) starts fresh, so it can be played instead of showing its old result.
+
 ## 0.4.0
 
 - **A weekly ramp that starts on a date:** `weeklyRamp: { from: 'YYYY-MM-DD' }` (a Monday). Days from then on follow the ramp rules and show "Monday · level 1 of 6" and "Sunday capstone"; earlier days are checked and labeled without it. Help says when the ramp starts. `validateBank(bank, { ramp })` takes the same date. For DataFables, whose ramp starts after days already published.

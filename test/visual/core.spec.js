@@ -140,6 +140,36 @@ test.describe('behavior in the browser', () => {
     await expect(page.locator('.fables-tile').nth(2)).toContainText('0');
   });
 
+  test('unlimited: a missed puzzle is not served again until the rest are played, then comes back playable', async ({ page }) => {
+    await open(page);
+    await page.getByRole('link', { name: 'Unlimited', exact: true }).click();
+    await page.locator('select[name="concept"]').selectOption('squares');
+    await page.locator('select[name="level"]').selectOption('1'); // four puzzles
+    const current = () => page.evaluate(() => {
+      const serial = Number(document.querySelector('.fables-kicker').textContent.match(/^U-(\d+)/)[1]);
+      return window.EXAMPLE_BANK.unlimited.find((p) => p.serial === serial);
+    });
+    const missed = await current();
+    const wrong = [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => i !== missed.answer).slice(0, 3);
+    for (const i of wrong) await choice(page, i).click();
+    await expect(page.locator('.fables-result')).toHaveClass(/is-lost/);
+    const seen = new Set([missed.id]);
+    for (let k = 0; k < 3; k++) {
+      await page.getByRole('button', { name: 'Next puzzle' }).click();
+      const next = await current();
+      expect(seen.has(next.id)).toBe(false);
+      seen.add(next.id);
+      await choice(page, next.answer).click();
+      await expect(page.locator('.fables-result')).toHaveClass(/is-solved/);
+    }
+    await page.getByRole('button', { name: 'Next puzzle' }).click();
+    expect((await current()).id).toBe(missed.id);
+    await expect(page.locator('.fables-picker .fables-notice')).toContainText('one you missed');
+    await expect(choice(page, missed.answer)).toBeEnabled();
+    await choice(page, missed.answer).click();
+    await expect(page.locator('.fables-result')).toHaveClass(/is-solved/);
+  });
+
   test('a date with no puzzle says so and offers Unlimited', async ({ page }) => {
     await page.goto(PAGE.replace('2026-11-23', '2030-01-01'));
     await expect(page.getByRole('heading', { name: 'No puzzle today' })).toBeVisible();
