@@ -34,4 +34,14 @@ Made while building the first version from the Fables family spec (2026-11-23).
 13. **ScaleFables labels:** lenses named Compute, Memory and Data movement; the two halves of a puzzle labeled Big-O and Speedup.
 14. **Puzzle review:** Mike reviews the flagged puzzles (TestFables numerical and acceptance, UDXFables agent needs) on a review page that lists each with its answer and explanation, approving or rejecting before they go live.
 
+## Answers from Mike, 2026-11-25
+
+1. **Results:** a screen of their own at the end of a game, with "Play more Fables?".
+2. **A puzzle every day:** each puzzle has a permanent number; the collection plays in order, then again in a fixed different order each time. New puzzles go after unplayed ones and before repeats.
+3. **By calendar:** everyone has the same puzzle on the same day. Future days stay private.
+4. **Repeats keep the weekly climb.**
+5. **Size:** a full year per game, if the puzzles stay different enough.
+6. **Unlimited** stays separate, and DataFables keeps its generator.
+7. **Open pages update themselves.**
+
 Still open, to ask when each game starts: TestFables' on-screen test level names; UDXFables' starting persona cast, stakeholder types, journey stage names and phase 1 artifact types; whether ScaleFables later covers communication between machines; and the names of later rungs above CodeFables.

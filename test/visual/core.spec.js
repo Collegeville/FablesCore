@@ -243,8 +243,22 @@ test.describe('behavior in the browser', () => {
   });
 
   test('a date with no puzzle says so and offers Unlimited', async ({ page }) => {
-    await page.goto(PAGE.replace('2026-11-23', '2030-01-01'));
+    await page.goto(PAGE.replace('2026-11-23', '2026-11-01'));
     await expect(page.getByRole('heading', { name: 'No puzzle today' })).toBeVisible();
+  });
+
+  test('past the end of the collection, puzzles come around again, fresh, under their own numbers', async ({ page }) => {
+    await page.goto(PAGE.replace('2026-11-23', '2027-03-15')); // the Monday after the last first play
+    await expect(page.locator('.fables-kicker')).toHaveText(/^#\d+ · Mar 15 · Monday · level 1 of 6$/);
+    const p = await page.evaluate(() => window.Fables.dailyFor(window.Fables.withRepeats(window.EXAMPLE_BANK, '2027-03-15'), '2027-03-15'));
+    expect(p.id).toBe(`${p.of}@2`);
+    await choice(page, p.answer).click();
+    await expect(page.locator('.fables-results')).toContainText('Streak: 1 day');
+    await expect(page.locator('.fables-share-text')).toContainText(`?p=${p.of}%402`);
+    await expect(page.locator('.fables-results')).toContainText(`Report a problem with ${p.of}`);
+    await expect(page.locator('.fables-report')).not.toContainText('@');
+    await page.reload();
+    await expect(page.locator('.fables-results')).toContainText('Congratulations!');
   });
 
   test('a broken bank is refused with a message, not a crash', async ({ page }) => {

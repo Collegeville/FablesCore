@@ -103,6 +103,7 @@
         if (typeof p.id !== 'string' || !p.id.trim()) errors.push(`${where}: missing id`);
         else if (ids.has(p.id)) errors.push(`${where}: id "${p.id}" is also used by ${ids.get(p.id)}`);
         else ids.set(p.id, where);
+        if (p.of !== undefined) continue; // a repeat: the same puzzle and number, on a new date
         if (!Number.isInteger(p.serial) || p.serial < 1) errors.push(`${where}: missing serial number`);
         else if (serials.has(p.serial)) errors.push(`${where}: serial ${p.serial} is used twice in ${track}`);
         else serials.add(p.serial);
@@ -152,7 +153,8 @@
     }
     const valid = daily.filter((p) => isValidDate(p.date) && Number.isInteger(p.serial));
     const byDate = [...valid].sort((a, b) => dayNumber(a.date) - dayNumber(b.date));
-    if (byDate.some((p, i) => i > 0 && p.serial < byDate[i - 1].serial)) errors.push('daily: serial numbers must increase with the date');
+    const firsts = byDate.filter((p) => p.of === undefined);
+    if (firsts.some((p, i) => i > 0 && p.serial < firsts[i - 1].serial)) errors.push('daily: serial numbers must increase with the date');
     // Within each week, Monday to Saturday must not get easier.
     const weeks = new Map();
     for (const p of byDate) {
@@ -171,6 +173,114 @@
     const { ok, errors } = validateBank(bank);
     if (!ok) throw new Error(`Puzzle bank problems:\n- ${errors.join('\n- ')}`);
     return bank;
+  }
+
+  // ---------------------------------------------------------------- playing the collection again
+  // Every daily puzzle keeps the date it is first played. When a date has no first play left, the
+  // collection is played again, in passes: each pass holds every puzzle played so far and gets its
+  // own fixed order, so everyone has the same puzzle on the same day. Each day of the week draws on
+  // the puzzles made for it, so the week still climbs to a Sunday capstone. New puzzles are added with
+  // later dates of their own (see nextOpenMonday): those dates interrupt a pass, which then goes on
+  // where it stopped, and the new puzzles join the next pass. Dates already played never change.
+
+  function seeded(text) {
+    let hash = 2166136261;
+    for (const ch of text) hash = Math.imul(hash ^ ch.codePointAt(0), 16777619) >>> 0;
+    return () => {
+      hash = (hash + 0x6d2b79f5) >>> 0;
+      let t = Math.imul(hash ^ (hash >>> 15), 1 | hash);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // `played` is oldest play first. The most recent quarter never lands in the first quarter of the
+  // new order, so a puzzle does not come back soon after it was played.
+  function passOrder(played, random) {
+    const shuffle = (list) => {
+      const out = [...list];
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
+    };
+    const quarter = played.length > 1 ? Math.max(1, Math.floor(played.length / 4)) : 0;
+    const recent = played.slice(played.length - quarter);
+    const front = shuffle(played.slice(0, played.length - quarter)).slice(0, quarter);
+    return [...front, ...shuffle([...played.filter((p) => !front.includes(p) && !recent.includes(p)), ...recent])];
+  }
+
+  // Every repeat through a date: [{ of: puzzle id, play: 2, 3, ..., date }].
+  function planRepeats(daily, through, { seed = '' } = {}) {
+    const firsts = daily.filter((p) => !p.of).sort((a, b) => dayNumber(a.date) - dayNumber(b.date));
+    if (!firsts.length) return [];
+    const byDate = new Map(firsts.map((p) => [p.date, p]));
+    const slots = Array.from({ length: 7 }, () => ({ played: [], queue: [], pass: 1 }));
+    const plays = new Map();
+    const touch = (slot, p) => {
+      slot.played = [...slot.played.filter((q) => q !== p), p];
+      plays.set(p.id, (plays.get(p.id) ?? 0) + 1);
+    };
+    const next = (i) => {
+      const slot = slots[i];
+      if (!slot.queue.length) {
+        slot.pass++;
+        slot.queue = passOrder(slot.played, seeded(`${seed}|${i}|${slot.pass}`));
+      }
+      const p = slot.queue.shift();
+      if (p) touch(slot, p);
+      return p;
+    };
+    const out = [];
+    const first = firsts[0].date;
+    for (let monday = weekStart(first); dayNumber(monday) <= dayNumber(through); monday = addDays(monday, 7)) {
+      const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+      const open = days.map((date, i) => i).filter((i) => dayNumber(days[i]) >= dayNumber(first) && !byDate.has(days[i]));
+      let picks = open.map((i) => [i, next(i)]).filter(([, p]) => p);
+      // A whole week of repeats is put in climbing order, Monday to Saturday.
+      if (picks.length === 7) {
+        const climb = picks.slice(0, 6).map(([, p]) => p).sort((a, b) => a.difficulty - b.difficulty);
+        picks = [...climb.map((p, i) => [i, p]), picks[6]];
+      }
+      for (const [i, p] of picks) {
+        if (dayNumber(days[i]) <= dayNumber(through)) out.push({ of: p.id, play: plays.get(p.id), date: days[i] });
+      }
+      days.forEach((date, i) => byDate.has(date) && touch(slots[i], byDate.get(date)));
+    }
+    return out;
+  }
+
+  // A repeat is the same puzzle, with the same number, on a new date. Its ID says which play it is
+  // (ux-d-0005@2), so it starts fresh and has its own result.
+  const asRepeat = (p, play, date) => ({
+    ...p, id: `${p.id}@${play}`, of: p.id, play, date,
+    ...(p.parts && { parts: p.parts.map((q) => ({ ...q, id: `${q.id}@${play}`, of: q.id })) }),
+  });
+
+  // The bank as played: a published bank lists its repeats; a full bank (previewed from disk) works
+  // them out through the day being played.
+  function withRepeats(bank, day) {
+    if (!Array.isArray(bank?.daily) || bank.daily.some((p) => !isValidDate(p.date))) return bank;
+    const byId = new Map(bank.daily.map((p) => [p.id, p]));
+    const repeats = bank.repeats ?? planRepeats(bank.daily, day, { seed: bank.seed ?? bank.game });
+    return { ...bank, daily: [...bank.daily, ...repeats.filter((r) => byId.has(r.of)).map((r) => asRepeat(byId.get(r.of), r.play, r.date))] };
+  }
+
+  // The bank a site publishes: daily puzzles only through `day`, so later answers stay private, and
+  // the repeats through `day`. Worked out from the full bank, so it never guesses at future puzzles.
+  function publishedBank(bank, day) {
+    return {
+      ...bank,
+      daily: bank.daily.filter((p) => dayNumber(p.date) <= dayNumber(day)),
+      repeats: planRepeats(bank.daily, day, { seed: bank.seed ?? bank.game }),
+    };
+  }
+
+  // Where new daily puzzles start: the first Monday after both the last first play and today's week.
+  function nextOpenMonday(daily, day) {
+    const last = daily.filter((p) => !p.of).map((p) => p.date).reduce((a, b) => (dayNumber(b) > dayNumber(a) ? b : a), day);
+    return addDays(weekStart(last), 7);
   }
 
   const dailyFor = (bank, date) => (bank.daily ?? []).find((p) => p.date === date) ?? null;
@@ -594,10 +704,10 @@
   // { correct, mark }. The core does the rest.
   function start(options) {
     const { game, render, check } = options;
-    const bank = options.bank ?? null;
     const rowsFor = options.rows ?? defaultRows;
     const params = new URLSearchParams(root.location.search);
     const day = isValidDate(params.get('date')) ? params.get('date') : today(new Date(), game.timeZone);
+    const bank = options.bank ? withRepeats(options.bank, day) : null;
     const maxAttempts = game.maxAttempts ?? 3;
     // true by default; false for no ramp; { from: 'YYYY-MM-DD' } for a ramp that starts on a Monday.
     const ramp = game.weeklyRamp === false ? false : game.weeklyRamp?.from ?? true;
@@ -739,7 +849,7 @@
       h('a', { href: shell.tabs.querySelector('[data-view="today"]').href }, 'Back to today'));
 
     const reportLink = (puzzle, track, set) => {
-      const target = set ? { id: puzzle.id, serial: `${set.serial}${partLetter(set.parts.indexOf(puzzle))}` } : puzzle;
+      const target = set ? { id: puzzle.of ?? puzzle.id, serial: `${set.serial}${partLetter(set.parts.indexOf(puzzle))}` } : { id: puzzle.of ?? puzzle.id, serial: puzzle.serial };
       const href = feedbackLink(game.feedbackUrl, target, track);
       return href && h('a', { class: 'fables-report', href, target: '_blank', rel: 'noopener' }, `Report a problem with ${target.id}`);
     };
@@ -1289,8 +1399,105 @@
       ].filter(Boolean));
     }
 
+    // ---- staying current: a page left open learns about a new day or a new release by itself.
+    // It looks when the page is shown again, and every few minutes while it is open. If the player
+    // is not in the middle of something it reloads; otherwise it offers to. Progress is saved after
+    // every answer, so a reload loses nothing that was submitted.
+    function watchForUpdates() {
+      const { every = 5 * 60000, idle = 2 * 60000 } = game.updates ?? {};
+      const GUARD = `fables:${game.id}:reloaded`;
+      const RETRY = 10 * 60000; // never reload for the same reason more often than this
+      const onSite = /^https?:$/.test(root.location.protocol);
+      let known = options.bank?.build ?? null; // the release this page is running
+      let lastInput = -Infinity;
+      let lastLook = -Infinity;
+      for (const type of ['pointerdown', 'keydown']) root.addEventListener(type, () => { lastInput = Date.now(); }, { passive: true, capture: true });
+
+      async function why() {
+        const now = today(new Date(), game.timeZone);
+        const newDay = !params.get('date') && now !== day;
+        let build = null;
+        if (onSite) {
+          let published;
+          try {
+            const res = await root.fetch('version.json', { cache: 'no-store' });
+            published = res.ok ? await res.json() : {};
+          } catch {
+            return null; // offline: keep the page that works
+          }
+          build = published.build ?? null;
+          if (build && known && build !== known) return { key: `build ${build}`, text: newDay ? 'A new daily puzzle is ready.' : 'A new version is ready.' };
+          known ??= build;
+          // Just after midnight the new puzzle may not be published yet: wait for it.
+          if (published.day && dayNumber(published.day) < dayNumber(now)) return null;
+        }
+        if (newDay) return { key: `day ${now}`, text: 'A new daily puzzle is ready.' };
+        if (onSite && !params.get('date') && !archiveDate && shell.main.querySelector('.fables-empty')) return { key: `empty ${now}`, text: "Today's puzzle is ready." };
+        return null;
+      }
+
+      async function reload(key) {
+        try {
+          root.sessionStorage.setItem(GUARD, JSON.stringify({ key, at: Date.now() }));
+        } catch {
+          // No session storage: the page still reloads, once per look.
+        }
+        try {
+          // Let a waiting service worker take over, and refresh the browser's copies of the page's
+          // own files, so the reload cannot bring the old ones back.
+          const reg = await root.navigator.serviceWorker?.getRegistration();
+          await reg?.update();
+          const worker = reg?.installing ?? reg?.waiting;
+          if (worker) await Promise.race([
+            new Promise((resolve) => worker.addEventListener('statechange', () => worker.state === 'activated' && resolve())),
+            new Promise((resolve) => root.setTimeout(resolve, 5000)),
+          ]);
+          if (onSite) {
+            const own = [...doc.querySelectorAll('script[src], link[rel="stylesheet"]')].map((el) => el.src || el.href).filter((u) => new URL(u).origin === root.location.origin);
+            await Promise.all(own.map((u) => root.fetch(u, { cache: 'reload' })));
+          }
+        } catch {
+          // Reload with whatever the browser has.
+        }
+        root.location.reload();
+      }
+
+      function offer({ key, text }) {
+        if (doc.querySelector('.fables-update')) return;
+        doc.body.append(h('div', { class: 'fables-update', role: 'status' },
+          h('span', {}, text),
+          h('button', { type: 'button', class: 'fables-button', onclick: () => reload(key) }, 'Refresh')));
+      }
+
+      async function look() {
+        if (doc.visibilityState === 'hidden' || Date.now() - lastLook < 1000) return;
+        lastLook = Date.now();
+        const found = await why();
+        if (!found) return;
+        if (Date.now() - lastInput < idle) {
+          offer(found);
+          return;
+        }
+        try {
+          const last = JSON.parse(root.sessionStorage.getItem(GUARD));
+          if (last?.key === found.key && Date.now() - last.at < RETRY) return;
+        } catch {
+          // No session storage.
+        }
+        reload(found.key);
+      }
+
+      doc.addEventListener('visibilitychange', look);
+      root.addEventListener('pageshow', look);
+      root.addEventListener('focus', look);
+      root.addEventListener('online', look);
+      root.setInterval(look, every);
+      look();
+    }
+
     root.addEventListener('hashchange', route);
     route();
+    if (game.updates !== false) watchForUpdates();
     return { store, day, rerender: () => route() };
   }
 
@@ -1335,6 +1542,8 @@
     dayNumber, addDays, weekday, isValidDate, today, shortDate, rampSlot, weekStart, planWeek, assignSerials,
     // banks
     validateBank, assertBank, dailyFor, findPuzzle,
+    // playing the collection again
+    planRepeats, withRepeats, publishedBank, nextOpenMonday,
     // difficulty
     difficultyScore, adjustDifficulty,
     // unlimited
