@@ -14,6 +14,7 @@ FablesCore holds everything the games have in common, so it is improved once and
 
 - **Page shell:** header with the game's icon and name, the Today, Unlimited, Stats and Help tabs, and the standard footer. Light and dark themes, phone and desktop layouts.
 - **Feedback:** right and wrong answers are announced instantly and unmistakably, with color, an icon and a sentence ("Solved in two tries."), a short animation that respects reduced-motion settings, a screen-reader announcement, and an optional chime that is off by default.
+- **Results screen:** the end of a game opens its own screen, with congratulations, encouragement or (for a day with some parts solved) something in between, then the score, streak, explanation and moral, a link back to the puzzle, and a **Play more Fables?** link to the Games page.
 - **Sharing:** a spoiler-free emoji grid with the game, puzzle number, date, tries and streak, a Copy button that confirms, the phone's share sheet, and a drawn result picture to save or share.
 - **Weekly schedule:** puzzles climb from level 1 on Monday to level 6 on Saturday, and Sunday is a capstone that mixes the week's ideas.
 - **Unlimited mode:** extra puzzles on their own numbers (U-1, U-2, …), chosen by concept and level or as a random mix, preferring ones the player hasn't solved. They never touch the daily streak.
@@ -67,6 +68,8 @@ Fables.start({
     feedbackUrl: 'https://github.com/Collegeville/CodeFables/issues/new?title=Puzzle%20{id}',
     conceptLabels: { loops: 'Loops' },                             // names in the Unlimited picker
     help: '<h2>How to play</h2><p>…</p>',
+    gamesUrl: 'https://collegeville.github.io/games/',             // optional: where "Play more Fables?" goes; this is the default
+    messages: { solved: ['…'], some: ['…'], missed: ['…'] },       // optional: the game's own lines for the results screen
     timeZone: 'America/Chicago',   // optional: when the daily puzzle turns over; default is the player's own day
   },
   bank: window.MY_BANK,
@@ -81,7 +84,7 @@ Fables.start({
 
 **`check(puzzle, answer)`** returns `{ correct, mark }`. Marks are `hit` (🟩), `near` (🟨), `miss` (🟥) or `skip` (⬜). The core only ever sees marks, so shared results cannot spoil the answer.
 
-Everything else (choosing today's puzzle, the Unlimited picker, recording, streaks, the announcement, the share box, Stats and Help) is the core's job.
+Everything else (choosing today's puzzle, the Unlimited picker, recording, streaks, the announcement, the results screen, the share box, Stats and Help) is the core's job.
 
 ### Puzzle banks
 
@@ -118,7 +121,7 @@ A daily puzzle can be a set of parts played in order, like DataFables' three tab
   ] }
 ```
 
-The core shows a, b, c steps; each part unlocks when the one before is finished, and the result offers "Next: part b". The day is shared once, after its last part, with one row of squares per part and the score as parts solved (`2/3`). The day counts toward the streak when every part is finished on the day. Any single puzzle can also set its own `maxAttempts`. `render` and `check` are called for each part exactly as for a single puzzle.
+The core shows a, b, c steps; each part unlocks when the one before is finished, and the result offers "Next: part b". The last part opens the results screen, which covers the whole day. The day is shared once, there, with one row of squares per part and the score as parts solved (`2/3`). The day counts toward the streak when every part is finished on the day. Any single puzzle can also set its own `maxAttempts`. `render` and `check` are called for each part exactly as for a single puzzle.
 
 ### Store adapter
 
@@ -168,7 +171,7 @@ Passed to `Fables.start` alongside `render` and `check`. Each gets `{ store, rec
 | `intro: { today, unlimited }` | A first-visit card on that tab, with **Got it** (HTML text or elements) |
 | `stats(ctx)` | Extra sections on Stats (DataFables: points, this week, skills) |
 | `help(ctx)` | Extra sections on Help (DataFables: class code, difficulty log, export and import, reminder) |
-| `resultNote(puzzle, { solved, track, set })` | Extra lines in the result, under the verdict |
+| `resultNote(puzzle, { solved, track, set, screen })` | Extra lines in the result, under the verdict. Called for the finished puzzle (`screen: 'puzzle'`) and the results screen (`'results'`, where the board is not on screen, and where `puzzle` is the last part of a multi-part day) |
 | `tagRecord()` | Extra fields on every record (DataFables: the class code) |
 
 ### Difficulty

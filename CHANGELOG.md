@@ -2,6 +2,14 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.5.0
+
+- **Results screen:** the end of a game opens its own screen: congratulations when everything was solved, encouragement when it wasn't, and something in between ("Nice work, 2 of 3 solved") for a multi-part day with some parts solved. It holds the score, streak, explanation, moral and share box, a link back to the puzzle, and a **Play more Fables?** link to the Games page. It opens after a single puzzle, after the last part of a multi-part day, and after every Unlimited or Archive puzzle; earlier parts still show their result below the board. The browser's Back button returns to the puzzle.
+- **The finished puzzle** now shows its verdict, explanation and moral with a **See your results** button; the share box and streak moved to the results screen.
+- **`game.messages`** and **`game.gamesUrl`** (optional) replace the messages and the Games page address. `resultNote` is called for both screens and gets `screen: 'results'` or `'puzzle'`: a note that points at the board ("marked above") should not say so on the results screen.
+- **Fix:** a one-try puzzle that is missed says "Not solved." rather than "All one try used."
+- **Fix:** a repeated Unlimited puzzle is reset with an empty state rather than `null`, which a store adapter might not accept.
+
 ## 0.4.1
 
 - **Fix:** in Unlimited, **Next puzzle** after a missed puzzle served the same puzzle again, already finished, so the button seemed to do nothing (UDXFables issue #1). Unlimited now prefers puzzles not played yet, then brings back missed ones, and repeats solved ones only after that.

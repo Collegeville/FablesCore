@@ -41,10 +41,23 @@ for (const [size, viewport] of Object.entries(sizes)) {
         await axe(page);
 
         await choice(page, RIGHT).click();
-        await expect(page.locator('.fables-result')).toHaveClass(/is-solved/);
+        await expect(page.locator('.fables-results')).toHaveClass(/is-solved/);
         await expect(page.locator('.fables-result .fables-verdict')).toHaveScreenshot(name('success'));
-        await expect(page).toHaveScreenshot(name('settled'), { fullPage: true });
+        await expect(page).toHaveScreenshot(name('results'), { fullPage: true });
         await expect(page.locator('.fables-share')).toHaveScreenshot(name('share'));
+        await axe(page);
+
+        await page.getByRole('link', { name: 'See the puzzle' }).click();
+        await expect(page.locator('.fables-choice.is-answer')).toHaveCount(1);
+        await expect(page).toHaveScreenshot(name('settled'), { fullPage: true });
+        await axe(page);
+      });
+
+      test('the results screen after a miss', async ({ page }) => {
+        await open(page);
+        for (const i of [0, 1, 2]) await choice(page, i).click();
+        await expect(page.locator('.fables-results')).toHaveClass(/is-lost/);
+        await expect(page).toHaveScreenshot(name('results-missed'), { fullPage: true });
         await axe(page);
       });
 
@@ -66,8 +79,8 @@ test.describe('behavior in the browser', () => {
     await expect(page.locator('[aria-live="polite"]')).toHaveText('Not yet. 1 try used, 2 tries left.');
     await expect(page.locator('.fables-pip.miss')).toHaveCount(1);
     await choice(page, RIGHT).click();
-    await expect(page.locator('[aria-live="polite"]')).toHaveText(/^Solved in two tries\. Moral: /);
-    await expect(page.locator('.fables-result')).toBeFocused();
+    await expect(page.locator('[aria-live="polite"]')).toHaveText(/^Congratulations! .* Solved in two tries\. Moral: /);
+    await expect(page.locator('.fables-results')).toBeFocused();
     await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 · Mon Nov 23 · 2\/3 · Streak 1\n🟥🟩\n.*\?p=ex-d-0001$/);
   });
 
@@ -76,7 +89,7 @@ test.describe('behavior in the browser', () => {
       const page = await browser.newPage({ reducedMotion });
       await open(page);
       await choice(page, RIGHT).click();
-      const animation = await page.locator('.fables-result').evaluate((el) => getComputedStyle(el).animationName);
+      const animation = await page.locator('.fables-results').evaluate((el) => getComputedStyle(el).animationName);
       expect(animation).toBe(reducedMotion === 'reduce' ? 'none' : 'fables-pop');
       await page.close();
     }
@@ -85,9 +98,14 @@ test.describe('behavior in the browser', () => {
   test('progress survives a reload and the settled state stays', async ({ page }) => {
     await open(page);
     await choice(page, RIGHT).click();
+    await expect(page.locator('.fables-results')).toBeVisible();
     await page.reload();
+    await expect(page.locator('.fables-results')).toHaveClass(/is-solved/);
+    await page.getByRole('link', { name: 'Today', exact: true }).click();
     await expect(page.locator('.fables-result')).toHaveClass(/is-solved/);
     await expect(page.locator('.fables-choice.is-answer')).toHaveCount(1);
+    await page.getByRole('link', { name: 'See your results' }).click();
+    await expect(page.locator('.fables-results')).toContainText('Congratulations!');
     await page.getByRole('link', { name: 'Stats', exact: true }).click();
     await expect(page.locator('.fables-tile').nth(2)).toContainText('1');
   });
@@ -113,6 +131,60 @@ test.describe('behavior in the browser', () => {
     require('node:fs').copyFileSync(await download.path(), require('node:path').join(__dirname, '../../test-results/share-card.png'));
   });
 
+  test('a solve congratulates and links to the Games page; Back returns to the puzzle', async ({ page }) => {
+    await open(page);
+    await choice(page, RIGHT).click();
+    await expect(page).toHaveURL(/#result\/ex-d-0001$/);
+    await expect(page.getByRole('heading', { name: 'Congratulations!' })).toBeVisible();
+    await expect(page.locator('.fables-score')).toHaveText('Solved in one try.');
+    await expect(page.locator('.fables-choice')).toHaveCount(0); // a screen of its own
+    await expect(page.locator('.fables-tabs [aria-current]')).toHaveText(['Today']);
+    await expect(page.getByRole('link', { name: 'Play more Fables?' })).toHaveAttribute('href', 'https://collegeville.github.io/games/');
+    const line = await page.locator('.fables-message').textContent();
+    await page.goBack();
+    await expect(page.locator('.fables-choice.is-answer')).toHaveCount(1);
+    await page.goForward();
+    await expect(page.locator('.fables-message')).toHaveText(line); // the same line each time
+    await page.reload();
+    await expect(page.locator('.fables-message')).toHaveText(line);
+  });
+
+  test('a miss encourages', async ({ page }) => {
+    await open(page);
+    for (const i of [0, 1, 2]) await choice(page, i).click();
+    await expect(page.getByRole('heading', { name: 'Good try, next time!' })).toBeVisible();
+    await expect(page.locator('.fables-score')).toHaveText('Not solved. All three tries used.');
+    await expect(page.getByRole('link', { name: 'Play more Fables?' })).toBeVisible();
+  });
+
+  test('a result left open gives way to the next day, and an unfinished one never shows', async ({ page }) => {
+    await open(page);
+    await page.goto(`${PAGE}#result/ex-d-0001`);
+    await page.reload();
+    await expect(page.locator('.fables-choice')).toHaveCount(8); // not finished: the puzzle, not a result
+    await choice(page, RIGHT).click();
+    await expect(page.locator('.fables-results')).toBeVisible();
+    await page.goto(`${PAGE.replace('2026-11-23', '2026-11-24')}#result/ex-d-0001`);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^#2 · /);
+    await page.goto(`${PAGE}#result/%E0%A4%A`);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^#1 · /);
+  });
+
+  test('after Back to a finished Unlimited puzzle, Next puzzle and reload move on', async ({ page }) => {
+    await open(page);
+    await page.getByRole('link', { name: 'Unlimited', exact: true }).click();
+    await expect(page.locator('.fables-kicker')).toHaveText(/^U-1 · /);
+    await choice(page, 3).click(); // U-1's answer
+    await expect(page.locator('.fables-results-tag')).toHaveText('U-1 · Results');
+    await expect(page.locator('.fables-tabs [aria-current]')).toHaveText(['Unlimited']);
+    await page.goBack();
+    await expect(page.locator('.fables-kicker')).toHaveText(/^U-1 · /);
+    await page.getByRole('button', { name: 'Next puzzle' }).click();
+    await expect(page.locator('.fables-kicker')).toHaveText(/^U-2 · /);
+    await page.reload();
+    await expect(page.locator('.fables-kicker')).toHaveText(/^U-2 · /);
+  });
+
   test('a missed daily puzzle still keeps the streak', async ({ page }) => {
     await open(page);
     for (const i of [0, 1, 2]) await choice(page, i).click();
@@ -133,9 +205,9 @@ test.describe('behavior in the browser', () => {
     });
     await choice(page, answer).click();
     await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables U-\d+ · Unlimited · 1\/3\n🟩/);
-    const first = await page.locator('.fables-kicker').textContent();
+    const first = (await page.locator('.fables-results-tag').textContent()).split(' ')[0];
     await page.getByRole('button', { name: 'Next puzzle' }).click();
-    await expect(page.locator('.fables-kicker')).not.toHaveText(first);
+    await expect(page.locator('.fables-kicker')).not.toHaveText(new RegExp(`^${first} `));
     await page.getByRole('link', { name: 'Stats', exact: true }).click();
     await expect(page.locator('.fables-tile').nth(2)).toContainText('0');
   });
@@ -145,7 +217,7 @@ test.describe('behavior in the browser', () => {
     await page.getByRole('link', { name: 'Unlimited', exact: true }).click();
     await page.locator('select[name="concept"]').selectOption('squares');
     await page.locator('select[name="level"]').selectOption('1'); // four puzzles
-    const current = () => page.evaluate(() => {
+    const current = async () => (await page.locator('.fables-kicker').waitFor()) ?? page.evaluate(() => {
       const serial = Number(document.querySelector('.fables-kicker').textContent.match(/^U-(\d+)/)[1]);
       return window.EXAMPLE_BANK.unlimited.find((p) => p.serial === serial);
     });

@@ -8,9 +8,9 @@
 
 `npm install`, then `npm run test:visual`. They open the example game straight from disk and check:
 
-- **Look:** screenshots of the page shell, a miss, a success, the settled state and the share box, at phone (375 px) and desktop widths, in light and dark themes, compared with saved baselines. At most 20 pixels may differ, so even a changed word fails the check.
+- **Look:** screenshots of the page shell, a miss, the results screen (solved and missed), the settled puzzle and the share box, at phone (375 px) and desktop widths, in light and dark themes, compared with saved baselines. At most 20 pixels may differ, so even a changed word fails the check.
 - **Accessibility:** automated checks (axe, WCAG 2.1 AA, including color contrast and ARIA) on every state and every tab.
-- **Behavior:** the screen-reader announcements, focus moving to the result, the success animation and its absence under reduced motion, progress surviving a reload, the Copy confirmation, Unlimited's own numbering and its separation from the streak, a date with no puzzle, and a broken bank refused with a message.
+- **Behavior:** the screen-reader announcements, focus moving to the results screen, its messages, its Back button and reload behavior, the Play more Fables? link, the success animation and its absence under reduced motion, progress surviving a reload, the Copy confirmation, Unlimited's own numbering and its separation from the streak, a date with no puzzle, and a broken bank refused with a message.
 
 Locally these use the Chrome already on the Mac.
 

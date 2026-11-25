@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.4.1';
+  const VERSION = '0.5.0';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -493,6 +493,58 @@
   // Default marks: one square per attempt, in a single row.
   const defaultRows = (marks) => [marks];
 
+  // ---------------------------------------------------------------- results messages
+  // What the results screen says: congratulations, encouragement, or something in between for a
+  // multi-part day with some parts solved. The line is chosen by the puzzle's ID, so the same
+  // puzzle always shows the same line. A game can pass its own lists as `game.messages`.
+
+  const GAMES_URL = 'https://collegeville.github.io/games/';
+
+  const MESSAGES = {
+    solved: [
+      'You saw exactly what was going on.',
+      'That took a careful eye.',
+      'Your judgment is in good shape.',
+      'Nicely reasoned from start to finish.',
+      'You checked it instead of trusting it, and you got it.',
+      'That is the kind of judgment worth keeping sharp.',
+      'Clear thinking, and it paid off.',
+      'Another good workout for your judgment.',
+    ],
+    some: [
+      'You are close to a clean sweep.',
+      'The parts you missed are the ones worth a second look.',
+      'Solid work, with a little room to grow.',
+      'You got part of the way there, and that counts.',
+      'Look back at the one that got away, and it may stick for good.',
+      'That is real progress.',
+      'Some of these are meant to stretch you, and you kept up.',
+      'A good workout, with something left to learn.',
+    ],
+    missed: [
+      'The puzzles you miss are the ones that teach the most.',
+      'Some puzzles are meant to catch people. The next one is a fresh start.',
+      'Now that you have seen this one, you will spot the next one like it sooner.',
+      'Getting stronger means working at the edge of what you can do.',
+      'Everyone misses some. Showing up to practice is what builds the skill.',
+      'A miss now makes the pattern easier to see next time.',
+      'Look over the answer, then give another one a go.',
+      'Good judgment is built one puzzle at a time, misses included.',
+    ],
+  };
+
+  const outcomeOf = (solved, total) => (solved >= total ? 'solved' : solved > 0 ? 'some' : 'missed');
+
+  // { lead, line } for an outcome: a short heading and the sentence under it.
+  function resultMessage({ solved, total, id, messages = {} }) {
+    const outcome = outcomeOf(solved, total);
+    const lines = messages[outcome]?.length ? messages[outcome] : MESSAGES[outcome];
+    let hash = 0;
+    for (const ch of String(id)) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+    const lead = outcome === 'solved' ? 'Congratulations!' : outcome === 'some' ? `Nice work, ${solved} of ${total} solved` : 'Good try, next time!';
+    return { outcome, lead, line: lines[hash % lines.length] };
+  }
+
   // ---------------------------------------------------------------- browser UI
   // Everything below needs a document. The page shell, the check-and-announce flow, the share box,
   // the Unlimited picker, Stats and Help all live here, so every game gets them for free.
@@ -583,6 +635,8 @@
     const archiveDate = game.archive && isValidDate(params.get('archive')) && dayNumber(params.get('archive')) < dayNumber(day)
       ? params.get('archive') : null;
     let nav = 0; // bumped on every route, so a slow load never draws over a newer view
+    let justFinished = null; // { puzzle, track } handed to the results screen by the last answer
+    let firstRoute = true;
 
     if (game.archive) {
       shell.tabs.querySelector('[data-view="unlimited"]').after(h('a', { href: '#archive', 'data-view': 'archive' }, 'Archive'));
@@ -591,7 +645,23 @@
     async function route() {
       const token = ++nav;
       let view = (root.location.hash || '#today').slice(1);
-      if (linkedId) {
+      const opening = firstRoute;
+      firstRoute = false;
+      let target = null; // what the results screen is about
+      if (view.startsWith(RESULT)) {
+        target = await resultTarget(view.slice(RESULT.length), opening);
+        if (token !== nav) return;
+        if (target) {
+          view = target.track === 'unlimited' ? 'unlimited' : 'today';
+        } else {
+          // Nothing finished to show (a stale or mistyped address): go to today's puzzle.
+          root.history.replaceState(null, '', '#today');
+          view = 'today';
+        }
+      } else if (root.history.state?.board && root.history.state.day === day) {
+        linkedId ??= root.history.state.board; // Back from the results screen: the same puzzle
+      }
+      if (linkedId && !target) {
         const found = await provider.byId(linkedId);
         if (token !== nav) return;
         linkedId = null;
@@ -617,6 +687,7 @@
         url.hash = '';
         todayTab.href = url.href;
       }
+      if (target) return showResults(target);
       if (view === 'unlimited') return showUnlimited(token);
       if (view === 'archive' && game.archive) return showArchive(token);
       if (view === 'stats') return showStats();
@@ -624,6 +695,126 @@
       return showToday(token);
     }
     let linkedDaily = null;
+
+    // ---- the results screen: its own address (#result/<id>), so Back returns to the puzzle.
+    const RESULT = 'result/';
+
+    const finished = (puzzle) => {
+      const state = store.loadState(puzzle.id);
+      return !!state && (state.solved || state.answers.length >= triesFor(puzzle));
+    };
+    const triesFor = (puzzle) => puzzle.maxAttempts ?? maxAttempts; // per puzzle, else the game's
+
+    // The finished puzzle an address names, or null. A daily result left open overnight gives way
+    // to the new day's puzzle when the page is opened again.
+    async function resultTarget(hashId, opening) {
+      let id = hashId;
+      try {
+        id = decodeURIComponent(hashId);
+      } catch {
+        return null;
+      }
+      if (justFinished?.puzzle.id === id) return justFinished;
+      loading();
+      const found = await provider.byId(id);
+      if (!found || !checkOne(found.puzzle, found.track)) return null;
+      const { puzzle, track } = found;
+      if (opening && track === 'daily' && puzzle.date !== (archiveDate ?? day) && !params.get('p')) return null;
+      return (puzzle.parts ? puzzle.parts.every(partDone) : finished(puzzle)) ? { puzzle, track } : null;
+    }
+
+    const resultHash = (puzzle) => `#${RESULT}${encodeURIComponent(puzzle.id)}`;
+
+    // A link back to a finished puzzle (or one part of a day), with its answer shown.
+    const boardLink = (id, track, text) => h('a', {
+      href: track === 'unlimited' ? '#unlimited' : '#today',
+      onclick: () => {
+        linkedId = id;
+        root.scrollTo({ top: 0 });
+      },
+    }, text);
+
+    const practiceNote = (puzzle) => puzzle.date !== day && h('p', { class: 'fables-practice' },
+      `Practice: ${shortDate(puzzle.date)} is from the archive, so it doesn't change your streak. `,
+      h('a', { href: shell.tabs.querySelector('[data-view="today"]').href }, 'Back to today'));
+
+    const reportLink = (puzzle, track, set) => {
+      const target = set ? { id: puzzle.id, serial: `${set.serial}${partLetter(set.parts.indexOf(puzzle))}` } : puzzle;
+      const href = feedbackLink(game.feedbackUrl, target, track);
+      return href && h('a', { class: 'fables-report', href, target: '_blank', rel: 'noopener' }, `Report a problem with ${target.id}`);
+    };
+
+    const partName = (part, k) => `Part ${partLetter(k)}${part.label ? `, ${part.label}` : ''}`;
+    const verdictFor = (solved, used, max) => (solved ? `Solved in ${tries(used)}.` : max === 1 ? 'Not solved.' : `Not solved. All ${tries(max)} used.`);
+
+    // `puzzle` is the whole daily entry (with its parts, on a multi-part day) or an Unlimited puzzle.
+    function showResults({ puzzle, track }) {
+      const fresh = justFinished?.puzzle === puzzle;
+      justFinished = null;
+      const set = puzzle.parts ? puzzle : null;
+      const last = set ? set.parts[set.parts.length - 1] : puzzle;
+      const states = (set ? set.parts : [puzzle]).map((p) => store.loadState(p.id) ?? { answers: [], marks: [] });
+      const state = states[states.length - 1];
+      const solved = set ? set.parts.filter((p) => partDone(p)?.solved).length : state.solved ? 1 : 0;
+      const total = states.length;
+      const used = state.answers.length;
+      const max = triesFor(puzzle);
+      const onTime = track === 'daily' && puzzle.date === day;
+      const streak = currentStreak(store.records(), day);
+      const { outcome, lead, line } = resultMessage({ solved, total, id: puzzle.id, messages: game.messages });
+      const verdict = set ? (solved ? `${solved} of ${total} parts solved.` : `None of the ${total} parts solved.`) : verdictFor(solved, used, max);
+      const shareInput = {
+        game: game.name, puzzle, track, solved: solved > 0,
+        ...(set
+          ? { rows: states.map((s) => s.marks), score: `${solved}/${total}` }
+          : { rows: rowsFor(state.marks, puzzle), attempts: used, maxAttempts: max }),
+        streak: onTime ? streak : undefined, url: shareUrl(game.url, puzzle),
+      };
+      const heading = h('h2', { class: 'fables-verdict', id: 'fables-results-heading' },
+        h('span', { class: 'fables-icon', 'aria-hidden': 'true' }, { solved: '✓', some: '◐', missed: '↻' }[outcome]),
+        h('span', {}, lead));
+      const result = h('section', {
+        class: `fables-result fables-results is-${outcome === 'missed' ? 'lost' : outcome}`,
+        'aria-labelledby': 'fables-results-heading',
+        tabindex: '-1',
+      }, ...[
+        heading,
+        h('p', { class: 'fables-message' }, `${line}${outcome === 'some' && onTime ? ' A fresh set arrives tomorrow.' : ''}`),
+        h('p', { class: 'fables-score' }, verdict),
+        onTime && h('p', { class: 'fables-streak' }, `Streak: ${plural(streak, 'day')}`),
+        set && h('ul', { class: 'fables-outcomes', 'aria-label': 'Each part' }, set.parts.map((part, k) => {
+          const r = partDone(part);
+          return h('li', {},
+            h('span', { class: `fables-outcome ${r.solved ? 'solved' : 'missed'}`, 'aria-hidden': 'true' }, r.solved ? '✓' : '✕'),
+            boardLink(part.id, track, partName(part, k)),
+            `: ${r.solved ? `solved in ${tries(r.attempts)}` : 'not solved'}`);
+        })),
+        set && h('h3', { class: 'fables-part-heading' }, partName(last, total - 1)),
+        ...[].concat(options.resultNote?.(last, { solved: !!state.solved, track, set, screen: 'results' }) ?? []),
+        last.explanation && h('p', { class: 'fables-explanation' }, last.explanation),
+        last.moral && h('p', { class: 'fables-moral' }, h('span', {}, 'Moral: '), last.moral),
+        !set && h('p', { class: 'fables-after' }, boardLink(puzzle.id, track, 'See the puzzle')),
+        shareBox(shareText(shareInput), shareParts(shareInput), `${game.id}-${track === 'unlimited' ? 'U' : ''}${puzzle.serial}.png`),
+        h('p', { class: 'fables-after' },
+          track === 'unlimited' && h('button', { type: 'button', class: 'fables-button', onclick: nextUnlimited }, 'Next puzzle'),
+          h('a', { class: `fables-button${track === 'unlimited' ? ' secondary' : ''} fables-more`, href: game.gamesUrl ?? GAMES_URL }, 'Play more Fables?'),
+          track === 'daily' && h('a', { href: '#unlimited' }, 'Play more in Unlimited'),
+          reportLink(last, track, set)),
+      ].filter(Boolean));
+      const tag = track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial} · ${shortDate(puzzle.date)}`;
+      shell.main.replaceChildren(...[
+        track === 'daily' && practiceNote(puzzle),
+        h('p', { class: 'fables-results-tag' }, `${tag} · Results`),
+        result,
+      ].filter(Boolean));
+      if (fresh) {
+        shell.say(`${lead} ${line} ${verdict}${last.moral ? ` Moral: ${last.moral}` : ''}`);
+        result.classList.add('fables-enter');
+        if (outcome === 'solved' && store.settings().sound) chime();
+        result.focus({ preventScroll: true });
+      }
+      root.scrollTo({ top: 0 });
+    }
 
     // A first-visit card for a tab, shown once with a "Got it" button.
     function intro(tab) {
@@ -663,10 +854,7 @@
       }
       const slot = rampSlot(puzzle.date);
       const label = !rampOn(ramp, puzzle.date) ? WEEKDAYS[weekday(puzzle.date)] : slot.capstone ? 'Sunday capstone' : `${slot.weekday} · level ${slot.level} of 6`;
-      const practice = puzzle.date !== day && h('p', { class: 'fables-practice' },
-        `Practice: ${shortDate(puzzle.date)} is from the archive, so it doesn't change your streak. `,
-        h('a', { href: shell.tabs.querySelector('[data-view="today"]').href }, 'Back to today'));
-      const before = [intro('today'), practice].filter(Boolean);
+      const before = [intro('today'), practiceNote(puzzle)].filter(Boolean);
       if (puzzle.parts) return showParts(puzzle, label, before);
       return play(puzzle, 'daily', `#${puzzle.serial} · ${shortDate(puzzle.date)} · ${label}`, before);
     }
@@ -744,6 +932,7 @@
 
     async function showUnlimited(token) {
       if (!current) {
+        if (root.history.state?.board) root.history.replaceState(null, ''); // this place now holds a new puzzle
         loading();
         const pick = await chooseUnlimited();
         if (token !== nav) return;
@@ -751,7 +940,7 @@
         unlimitedNotice = pick?.notice ?? null;
         if (current) {
           // A finished puzzle served again starts fresh, so it can be played rather than shown settled.
-          if (finishedIds().has(current.id)) store.saveState(current.id, null);
+          if (finishedIds().has(current.id)) store.saveState(current.id, { answers: [], marks: [] });
           store.saveState(CURRENT_KEY, current.id);
         }
       }
@@ -850,7 +1039,7 @@
     // One puzzle on screen: the game draws it, the core checks, records and announces.
     // `inSet` is { set, k } when this puzzle is part k of a multi-part day.
     function play(puzzle, track, kicker, before, inSet) {
-      const maxAttempts = puzzle.maxAttempts ?? options.game.maxAttempts ?? 3; // per puzzle, else the game's
+      const maxAttempts = triesFor(puzzle);
       const state = store.loadState(puzzle.id) ?? { answers: [], marks: [] };
       const day0 = inSet ? inSet.set : puzzle; // the daily entry that carries the date and number
       const area = h('div', { class: 'fables-puzzle' });
@@ -863,6 +1052,8 @@
       shell.main.replaceChildren(...[...[].concat(before ?? []), head, area, result].filter(Boolean));
 
       const done = () => state.solved || state.answers.length >= maxAttempts;
+      // A multi-part day is over after its last part; anything else, when the puzzle is done.
+      const gameOver = () => (inSet ? inSet.set.parts.every(partDone) : true);
       const draw = () => {
         area.replaceChildren();
         render(puzzle, area, {
@@ -898,6 +1089,14 @@
             inSet.nav = navEl;
           }
         }
+        // The end of the game opens the results screen. The board's place in the history remembers
+        // its puzzle, so Back returns to it.
+        if (done() && gameOver()) {
+          justFinished = { puzzle: day0, track };
+          root.history.replaceState({ board: puzzle.id, day }, '');
+          root.location.hash = resultHash(day0);
+          return;
+        }
         head.querySelectorAll('.fables-pip').forEach((pip, i) => {
           if (i < state.marks.length) pip.className = `fables-pip ${state.marks[i]}`;
         });
@@ -924,40 +1123,16 @@
           return;
         }
         result.classList.add(state.solved ? 'is-solved' : 'is-lost');
-        const verdict = state.solved ? `Solved in ${tries(used)}.` : `Not solved. All ${tries(maxAttempts)} used.`;
-        const streak = currentStreak(store.records(), day);
-        const onTime = track === 'daily' && day0.date === day;
-        // A multi-part day is shared once, after its last part; until then, point to the next part.
-        const setDone = inSet ? inSet.set.parts.every(partDone) : true;
-        const nextPart = inSet && !setDone ? inSet.set.parts.findIndex((part) => !partDone(part)) : -1;
-        let share = null;
-        if (setDone) {
-          const shareInput = inSet
-            ? (() => {
-              const finished = inSet.set.parts.map(partDone);
-              const solvedParts = finished.filter((r) => r.solved).length;
-              return {
-                game: game.name, puzzle: inSet.set, track,
-                rows: inSet.set.parts.map((part) => store.loadState(part.id)?.marks ?? []),
-                solved: solvedParts > 0, score: `${solvedParts}/${inSet.set.parts.length}`,
-                streak: onTime ? streak : undefined, url: shareUrl(game.url, inSet.set),
-              };
-            })()
-            : {
-              game: game.name, puzzle, track, rows: rowsFor(state.marks, puzzle), solved: !!state.solved, attempts: used, maxAttempts,
-              streak: onTime ? streak : undefined, url: shareUrl(game.url, puzzle),
-            };
-          share = shareBox(shareText(shareInput), shareParts(shareInput), `${game.id}-${track === 'unlimited' ? 'U' : ''}${day0.serial}.png`);
-        }
-        const reportTarget = inSet ? { id: puzzle.id, serial: `${inSet.set.serial}${partLetter(inSet.k)}` } : puzzle;
-        const report = feedbackLink(game.feedbackUrl, reportTarget, track);
+        const verdict = verdictFor(state.solved, used, maxAttempts);
+        // Between parts, point to the next one. When the game is over, the rest is on the results screen.
+        const over = gameOver();
+        const nextPart = over ? -1 : inSet.set.parts.findIndex((part) => !partDone(part));
         // DOM append writes false and null as text, so drop the optional pieces that are absent.
         result.append(...[
           h('p', { class: 'fables-verdict' },
             h('span', { class: 'fables-icon', 'aria-hidden': 'true' }, state.solved ? '✓' : '✕'),
             h('span', {}, verdict)),
-          ...[].concat(options.resultNote?.(puzzle, { solved: !!state.solved, track, set: inSet?.set ?? null }) ?? []),
-          onTime && setDone && h('p', { class: 'fables-streak' }, `Streak: ${plural(streak, 'day')}`),
+          ...[].concat(options.resultNote?.(puzzle, { solved: !!state.solved, track, set: inSet?.set ?? null, screen: 'puzzle' }) ?? []),
           puzzle.explanation && h('p', { class: 'fables-explanation' }, puzzle.explanation),
           puzzle.moral && h('p', { class: 'fables-moral' }, h('span', {}, 'Moral: '), puzzle.moral),
           nextPart >= 0 && h('p', { class: 'fables-after' }, h('button', {
@@ -970,12 +1145,10 @@
               root.scrollTo({ top: 0 });
             },
           }, `Next: part ${partLetter(nextPart)}${inSet.set.parts[nextPart].label ? `, ${inSet.set.parts[nextPart].label}` : ''} →`)),
-          share,
           h('p', { class: 'fables-after' },
-            track === 'unlimited'
-              ? h('button', { type: 'button', class: 'fables-button', onclick: nextUnlimited }, 'Next puzzle')
-              : setDone && h('a', { href: '#unlimited' }, 'Play more in Unlimited'),
-            report && h('a', { class: 'fables-report', href: report, target: '_blank', rel: 'noopener' }, `Report a problem with ${reportTarget.id}`)),
+            over && h('a', { class: 'fables-button', href: resultHash(day0) }, 'See your results'),
+            over && track === 'unlimited' && h('button', { type: 'button', class: 'fables-button secondary', onclick: nextUnlimited }, 'Next puzzle'),
+            reportLink(puzzle, track, inSet?.set)),
         ].filter(Boolean));
         if (fresh) {
           shell.say(`${verdict}${puzzle.moral ? ` Moral: ${puzzle.moral}` : ''}`);
@@ -1174,6 +1347,8 @@
     createStore, memoryStorage, streakDays, currentStreak, maxStreak, trackStats,
     // sharing
     MARKS, shareParts, shareText, shareUrl, feedbackLink, drawShareCard,
+    // results screen
+    MESSAGES, outcomeOf, resultMessage,
     // browser
     start,
   };
