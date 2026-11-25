@@ -62,3 +62,16 @@ test('the picture uses the same spoiler-free pieces as the text', () => {
     rows: [['miss', 'skip', 'hit']], url: 'https://x.test/g/?p=ex-d-0012' });
   assert.ok(!JSON.stringify(parts).includes('sequence') && !JSON.stringify(parts).includes('answer'));
 });
+
+test('results messages: congratulations, encouragement, or in between, the same line for the same puzzle', () => {
+  const at = (solved, total, id = 'x-d-0001', messages) => F.resultMessage({ solved, total, id, messages });
+  assert.deepEqual([at(1, 1).lead, at(3, 3).lead, at(2, 3).lead, at(0, 1).lead, at(0, 3).lead],
+    ['Congratulations!', 'Congratulations!', 'Nice work, 2 of 3 solved', 'Good try, next time!', 'Good try, next time!']);
+  assert.deepEqual(at(1, 1), at(1, 1));
+  for (const kind of ['solved', 'some', 'missed']) assert.equal(new Set(F.MESSAGES[kind]).size, F.MESSAGES[kind].length);
+  // Neighboring puzzles differ, and every line gets used.
+  const lines = Array.from({ length: 60 }, (_, i) => at(1, 1, `x-d-${String(i).padStart(4, '0')}`).line);
+  assert.equal(new Set(lines).size, F.MESSAGES.solved.length);
+  assert.equal(at(1, 1, 'x', { solved: ['Ours.'] }).line, 'Ours.');
+  assert.ok(F.MESSAGES.missed.includes(at(0, 1, 'x', { solved: ['Ours.'] }).line));
+});

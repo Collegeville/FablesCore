@@ -58,6 +58,9 @@ test('the Archive lists past days and plays them as practice, outside the streak
     await expect(page.locator('.test-note')).toHaveText(new RegExp(`^Got pv-3${part}$`));
     if (part !== 'c') await page.getByRole('button', { name: new RegExp(`^Next: part ${String.fromCharCode(part.charCodeAt(0) + 1)}`) }).click();
   }
+  await expect(page.locator('.fables-results')).toContainText('Congratulations!');
+  await expect(page.locator('.fables-practice')).toContainText('Practice: Nov 25');
+  await expect(page.locator('.fables-tabs [aria-current]')).toHaveText(['Archive']);
   await expect(page.locator('.fables-streak')).toHaveCount(0);
   await expect(page.locator('.fables-share-text')).not.toContainText('Streak');
   await page.getByRole('link', { name: 'Stats', exact: true }).click();

@@ -52,6 +52,16 @@ test('parts unlock in order, each with its own limit, and the day is shared once
   await choice(page, await answerOf(page, 2)).click();
   await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 · Mon Nov 23 · 2\/3 · Streak 1\n🟥🟩\n🟥🟥\n🟩\n.*\?p=set-1$/);
   await expect(page.locator('.fables-streak')).toHaveText('Streak: 1 day');
+  await expect(page.getByRole('heading', { name: 'Nice work, 2 of 3 solved' })).toBeVisible();
+  await expect(page.locator('.fables-message')).toContainText('A fresh set arrives tomorrow.');
+  await expect(page.locator('.fables-outcomes li')).toHaveText([/Part a, Find: solved in two tries/, /Part b, Audit: not solved/, /Part c, Rule: solved in one try/]);
+  await expect(page.locator('.fables-part-heading')).toHaveText('Part c, Rule'); // whose explanation this is
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+
+  // A part's link goes back to that part; from there the results are one tap away.
+  await page.getByRole('link', { name: 'Part a, Find' }).click();
+  await expect(page.locator('.fables-kicker')).toHaveText(/^#1a · /);
   await expect(page.locator('.fables-step.solved')).toHaveCount(2);
   await expect(page.locator('.fables-step.missed')).toHaveCount(1);
 
@@ -59,6 +69,23 @@ test('parts unlock in order, each with its own limit, and the day is shared once
   await steps(page).nth(1).click();
   await expect(page.locator('.fables-kicker')).toHaveText(/^#1b · /);
   await expect(page.locator('.fables-result')).toHaveClass(/is-lost/);
+  await page.getByRole('link', { name: 'See your results' }).click();
+  await expect(page.getByRole('heading', { name: 'Nice work, 2 of 3 solved' })).toBeVisible();
+});
+
+test('a day with every part solved congratulates, and one with none encourages', async ({ page }) => {
+  for (const solve of [true, false]) {
+    await open(page);
+    for (const k of [0, 1, 2]) {
+      const a = await answerOf(page, k);
+      const tries = await page.locator('.fables-pip').count();
+      const taps = solve ? [a] : [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => i !== a).slice(0, tries);
+      for (const i of taps) await choice(page, i).click();
+      if (k < 2) await page.getByRole('button', { name: /^Next: part/ }).click();
+    }
+    await expect(page.getByRole('heading', { name: solve ? 'Congratulations!' : 'Good try, next time!' })).toBeVisible();
+    await expect(page.locator('.fables-score')).toHaveText(solve ? '3 of 3 parts solved.' : 'None of the 3 parts solved.');
+  }
 });
 
 test('an unfinished day does not count toward the streak, and reloading resumes it', async ({ page }) => {

@@ -14,8 +14,11 @@ FablesCore holds everything the games have in common, so it is improved once and
 
 - **Page shell:** header with the game's icon and name, the Today, Unlimited, Stats and Help tabs, and the standard footer. Light and dark themes, phone and desktop layouts.
 - **Feedback:** right and wrong answers are announced instantly and unmistakably, with color, an icon and a sentence ("Solved in two tries."), a short animation that respects reduced-motion settings, a screen-reader announcement, and an optional chime that is off by default.
+- **Results screen:** the end of a game opens its own screen, with congratulations, encouragement or (for a day with some parts solved) something in between, then the score, streak, explanation and moral, a link back to the puzzle, and a **Play more Fables?** link to the Games page.
 - **Sharing:** a spoiler-free emoji grid with the game, puzzle number, date, tries and streak, a Copy button that confirms, the phone's share sheet, and a drawn result picture to save or share.
 - **Weekly schedule:** puzzles climb from level 1 on Monday to level 6 on Saturday, and Sunday is a capstone that mixes the week's ideas.
+- **A puzzle every day:** once every daily puzzle has been played, the collection plays again, in a new fixed order each time. New puzzles go ahead of repeats.
+- **Staying current:** a page left open picks up a new day or a new release by itself.
 - **Unlimited mode:** extra puzzles on their own numbers (U-1, U-2, …), chosen by concept and level or as a random mix, preferring ones the player hasn't solved. They never touch the daily streak.
 - **Puzzle identity, difficulty, progress:** permanent IDs and serial numbers checked when a game starts, a difficulty score with a hook for real player data, and streaks and stats saved on the player's device only.
 
@@ -41,7 +44,16 @@ In GitHub Desktop, choose **Repository > Show in Finder**, open the `example` fo
 
 ### Keeping future puzzles private
 
-A plain static game serves its whole puzzle bank, so a curious player could read ahead. A game that cares can do what DataFables does: keep the full bank out of the published site and use a small Node script plus a daily GitHub Action to publish puzzles only through today. The core does not need anything special for this: the game hands `Fables.start` whatever bank the page loaded.
+A plain static game serves its whole puzzle bank, so a curious player could read ahead. `fables-core/build-site.js` builds a site that holds puzzles only through today; a game runs it every day from a GitHub Action (see CodeFables). Its `tools/build-site.js` is a few lines:
+
+```js
+const { join } = require('node:path');
+const { siteBuilder } = require('../fables-core/build-site.js');
+module.exports = siteBuilder({ root: join(__dirname, '..'), bank: 'CODEFABLES_BANK' });
+if (require.main === module) console.log(module.exports.buildSite(process.argv[2]));
+```
+
+It also writes `version.json` (`{ build, day }`), which open pages read to learn about a new day or a new release. A game with its own builder (DataFables) writes that file itself.
 
 ## The contract
 
@@ -67,6 +79,8 @@ Fables.start({
     feedbackUrl: 'https://github.com/Collegeville/CodeFables/issues/new?title=Puzzle%20{id}',
     conceptLabels: { loops: 'Loops' },                             // names in the Unlimited picker
     help: '<h2>How to play</h2><p>…</p>',
+    gamesUrl: 'https://collegeville.github.io/games/',             // optional: where "Play more Fables?" goes; this is the default
+    messages: { solved: ['…'], some: ['…'], missed: ['…'] },       // optional: the game's own lines for the results screen
     timeZone: 'America/Chicago',   // optional: when the daily puzzle turns over; default is the player's own day
   },
   bank: window.MY_BANK,
@@ -81,7 +95,7 @@ Fables.start({
 
 **`check(puzzle, answer)`** returns `{ correct, mark }`. Marks are `hit` (🟩), `near` (🟨), `miss` (🟥) or `skip` (⬜). The core only ever sees marks, so shared results cannot spoil the answer.
 
-Everything else (choosing today's puzzle, the Unlimited picker, recording, streaks, the announcement, the share box, Stats and Help) is the core's job.
+Everything else (choosing today's puzzle, the Unlimited picker, recording, streaks, the announcement, the results screen, the share box, Stats and Help) is the core's job.
 
 ### Puzzle banks
 
@@ -105,6 +119,17 @@ window.MY_BANK = {
 
 If any rule is broken, the game refuses to start, shows a short message, and lists every problem in the browser console. `Fables.validateBank(bank)` returns the same list, so a game's bank script can check itself before writing the file.
 
+### Playing the collection again
+
+A daily puzzle's `date` is the day it is first played. On any date after that with no first play of its own, the core plays the collection again:
+
+- **In passes.** A pass plays every puzzle once, in an order fixed by the bank's `seed`, the pass and the day of the week. Every player gets the same puzzle on the same day, and each pass has a new order. The most recently played quarter never comes back in the first quarter of the next pass.
+- **Keeping the climb.** Each day of the week draws on the puzzles made for it; a week of repeats is put in order of difficulty, with its capstone on Sunday.
+- **As a fresh puzzle.** A repeat keeps its number. Its ID says which play it is (`ux-d-0005@2`), so it has its own saved state and result and counts toward the streak. Problem reports use the original ID.
+- **New puzzles first.** Add puzzles in whole weeks, with the next serial numbers and dates from `Fables.nextOpenMonday(daily, today)`: after every unplayed puzzle and before any more repeats. If a pass was under way it goes on afterwards where it stopped, and the next pass includes them. Never change a date that has passed: the dates are the record of what was played.
+
+`Fables.planRepeats(daily, through, { seed })` gives the schedule.
+
 ### Multi-part days
 
 A daily puzzle can be a set of parts played in order, like DataFables' three tables. Give it `parts` instead of the game fields; each part is a puzzle with its own permanent `id`, and may set its own `maxAttempts` and a `label`:
@@ -118,7 +143,7 @@ A daily puzzle can be a set of parts played in order, like DataFables' three tab
   ] }
 ```
 
-The core shows a, b, c steps; each part unlocks when the one before is finished, and the result offers "Next: part b". The day is shared once, after its last part, with one row of squares per part and the score as parts solved (`2/3`). The day counts toward the streak when every part is finished on the day. Any single puzzle can also set its own `maxAttempts`. `render` and `check` are called for each part exactly as for a single puzzle.
+The core shows a, b, c steps; each part unlocks when the one before is finished, and the result offers "Next: part b". The last part opens the results screen, which covers the whole day. The day is shared once, there, with one row of squares per part and the score as parts solved (`2/3`). The day counts toward the streak when every part is finished on the day. Any single puzzle can also set its own `maxAttempts`. `render` and `check` are called for each part exactly as for a single puzzle.
 
 ### Store adapter
 
@@ -154,6 +179,7 @@ Puzzles from a provider are checked one at a time as they load, with the same ru
 | --- | --- |
 | `weeklyRamp: false` | For a game without the Monday-to-Saturday ramp yet: no Sunday-capstone or climb rules, and the kicker shows just the weekday |
 | `weeklyRamp: { from: 'YYYY-MM-DD' }` | The ramp starts on that Monday; earlier days are treated as `weeklyRamp: false`. For a game that adds the ramp after it has players |
+| `updates: false` or `{ every, idle }` | Turns off the check for a new day or release, or changes how often it looks and how long without input counts as idle (milliseconds; the defaults are five minutes and two) |
 | `archive: { days: 60 }` | Adds an **Archive** tab listing past days. A past day opens with `?archive=YYYY-MM-DD` as practice: it is recorded, but never changes the streak |
 | `unlimitedLevels: 'run'`, `runLevels: { levels: 5, perLevel: 3 }` | Unlimited levels rise with the run (solves in a row): every three solves goes up a level, and a miss starts over. Replaces the concept and level picker with a run banner, and Stats shows current and best run |
 
@@ -168,7 +194,7 @@ Passed to `Fables.start` alongside `render` and `check`. Each gets `{ store, rec
 | `intro: { today, unlimited }` | A first-visit card on that tab, with **Got it** (HTML text or elements) |
 | `stats(ctx)` | Extra sections on Stats (DataFables: points, this week, skills) |
 | `help(ctx)` | Extra sections on Help (DataFables: class code, difficulty log, export and import, reminder) |
-| `resultNote(puzzle, { solved, track, set })` | Extra lines in the result, under the verdict |
+| `resultNote(puzzle, { solved, track, set, screen })` | Extra lines in the result, under the verdict. Called for the finished puzzle (`screen: 'puzzle'`) and the results screen (`'results'`, where the board is not on screen, and where `puzzle` is the last part of a multi-part day) |
 | `tagRecord()` | Extra fields on every record (DataFables: the class code) |
 
 ### Difficulty
