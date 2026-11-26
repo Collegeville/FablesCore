@@ -79,6 +79,7 @@ Fables.start({
     feedbackUrl: 'https://github.com/Collegeville/CodeFables/issues/new?title=Puzzle%20{id}',
     conceptLabels: { loops: 'Loops' },                             // names in the Unlimited picker
     help: '<h2>How to play</h2><p>…</p>',
+    version: window.MY_BANK.version,                                // set by the site builder; see Versions below
     about: '<h2>Why these puzzles</h2><p>…</p>',                    // optional: an About tab after Help
     gamesUrl: 'https://collegeville.github.io/games/',             // optional: where "Play more Fables?" goes; this is the default
     messages: { solved: ['…'], some: ['…'], missed: ['…'] },       // optional: the game's own lines for the results screen
@@ -95,6 +96,8 @@ Fables.start({
 **`render(puzzle, el, play)`** draws the puzzle into `el`. `play` has `answers` (the player's answers so far), `marks`, `done`, `solved`, `attemptsLeft`, and `submit(answer)`. The core calls `render` again after every answer, so the game only draws the current state: mark tried answers, and once `done` is true, show the correct one and disable input.
 
 **`check(puzzle, answer)`** returns `{ correct, mark }`. Marks are `hit` (🟩), `near` (🟨), `miss` (🟥) or `skip` (⬜). The core only ever sees marks, so shared results cannot spoil the answer.
+
+**Versions.** Every game and puzzle has a version. The game version is stamped automatically at each publish by `fables-core/build-site.js` (a game with its own builder computes it the same way, with `gameVersion` from that file): the date of the change being published and which change of that day it is, such as `2026.11.26.2`. Pass it as `game.version`; it shows under the game's name and in every share, and open pages reload for a newer one. A puzzle's `puzzleVersion` starts at 1 and goes up only when its content changes: call `Fables.versionPuzzles(bank, previousBank)` when building a bank. A player partway through a puzzle that has since been revised starts it fresh. Publish workflows need `fetch-depth: 0` on checkout, so the date count sees the day's history.
 
 **`about`** (optional) adds an **About** tab after Help: what the puzzles are, why they matter now that AI does more of the work, and the big ideas a regular player learns. The core closes it with a line on the Fables family and a link to the Games page.
 

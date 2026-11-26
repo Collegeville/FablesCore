@@ -70,6 +70,7 @@ body.fables {
 .fables-masthead h1 { margin: 0; font: 700 1.6rem/1.1 var(--serif); letter-spacing: 0.01em; }
 .fables-masthead h1 a { color: inherit; text-decoration: none; }
 .fables-tagline { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
+.fables-version { margin: 1px 0 0; color: var(--muted); font-size: 0.72rem; }
 
 .fables-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px 0; }
 .fables-tabs a {

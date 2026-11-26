@@ -139,3 +139,45 @@ test('the published site holds only puzzles and repeats through today, and says 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a puzzle keeps its version until what players see changes; moving it is not a change', () => {
+  const day = (id, date, extra = {}) => ({ id, serial: 1, date, difficulty: 1, sequence: [1, 2, 3], answer: 1, ...extra });
+  const v1 = F.versionPuzzles({ daily: [day('a', '2026-11-23')], unlimited: [{ id: 'u', serial: 1, concept: 'c', level: 1, text: 'x' }] });
+  assert.deepEqual([v1.daily[0].puzzleVersion, v1.unlimited[0].puzzleVersion], [1, 1]);
+  const moved = F.versionPuzzles({ daily: [day('a', '2027-01-04', { serial: 9, difficulty: 2 })], unlimited: v1.unlimited }, v1);
+  assert.equal(moved.daily[0].puzzleVersion, 1);
+  const changed = F.versionPuzzles({ daily: [day('a', '2026-11-23', { answer: 2 })], unlimited: [{ ...v1.unlimited[0], text: 'y' }] }, moved);
+  assert.deepEqual([changed.daily[0].puzzleVersion, changed.unlimited[0].puzzleVersion], [2, 2]);
+  assert.equal(F.versionPuzzles(changed, changed).daily[0].puzzleVersion, 2); // rebuilding changes nothing
+  const counts = (p) => F.puzzleContent({ ...p, text: String(p.text).replace(/\d+/g, '#') });
+  const noted = F.versionPuzzles({ unlimited: [{ ...changed.unlimited[0], text: 'took 41 steps' }] }, { unlimited: [{ ...changed.unlimited[0], text: 'took 40 steps' }] }, { content: counts });
+  assert.equal(noted.unlimited[0].puzzleVersion, 2, 'counts that vary between machines are not a change');
+  const parts = F.versionPuzzles({ daily: [day('s', '2026-11-23', { parts: [{ id: 's-a', text: 'p' }] })] }, { daily: [day('s', '2026-11-23', { parts: [{ id: 's-a', text: 'q' }] })] });
+  assert.equal(parts.daily[0].puzzleVersion, 2);
+  assert.match(F.validateBank({ daily: [day('a', '2026-11-23', { puzzleVersion: 0, capstone: false })] }, { ramp: false }).errors.join(), /puzzleVersion must be a whole number/);
+});
+
+test('the game version is the day of the change being published and which change of that day it is', () => {
+  const { execFileSync } = require('node:child_process');
+  const { gameVersion } = require('../fables-core/build-site.js');
+  const dir = mkdtempSync(join(tmpdir(), 'fables-git-'));
+  const git = (args, date) => execFileSync('git', ['-C', dir, ...args], { env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@x', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@x' }, stdio: 'ignore' });
+  try {
+    git(['init', '-q', '-b', 'main']);
+    assert.equal(gameVersion(dir), null);
+    git(['commit', '-q', '--allow-empty', '-m', 'a'], '2026-11-25T23:30:00-06:00');
+    git(['commit', '-q', '--allow-empty', '-m', 'b'], '2026-11-26T00:10:00-06:00'); // after midnight in Chicago
+    assert.equal(gameVersion(dir), '2026.11.26.1');
+    git(['commit', '-q', '--allow-empty', '-m', 'c'], '2026-11-26T09:00:00-06:00');
+    assert.equal(gameVersion(dir), '2026.11.26.2');
+    // Commits inside a merged branch don't count; the merge does.
+    git(['checkout', '-q', '-b', 'side']);
+    git(['commit', '-q', '--allow-empty', '-m', 'd'], '2026-11-26T10:00:00-06:00');
+    git(['commit', '-q', '--allow-empty', '-m', 'e'], '2026-11-26T10:05:00-06:00');
+    git(['checkout', '-q', 'main']);
+    git(['merge', '-q', '--no-ff', '-m', 'merge', 'side'], '2026-11-26T11:00:00-06:00');
+    assert.equal(gameVersion(dir), '2026.11.26.3');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -81,7 +81,7 @@ test.describe('behavior in the browser', () => {
     await choice(page, RIGHT).click();
     await expect(page.locator('[aria-live="polite"]')).toHaveText(/^Congratulations! .* Solved in two tries\. Moral: /);
     await expect(page.locator('.fables-results')).toBeFocused();
-    await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 · Mon Nov 23 · 2\/3 · Streak 1\n🟥🟩\n.*\?p=ex-d-0001$/);
+    await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 v1 · Mon Nov 23 · 2\/3 · Streak 1\n🟥🟩\n.*\?p=ex-d-0001$/);
   });
 
   test('the success animation plays, and stops under reduced motion', async ({ browser }) => {
@@ -165,24 +165,24 @@ test.describe('behavior in the browser', () => {
     await choice(page, RIGHT).click();
     await expect(page.locator('.fables-results')).toBeVisible();
     await page.goto(`${PAGE.replace('2026-11-23', '2026-11-24')}#result/ex-d-0001`);
-    await expect(page.locator('.fables-kicker')).toHaveText(/^#2 · /);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^#2 v1 · /);
     await page.goto(`${PAGE}#result/%E0%A4%A`);
-    await expect(page.locator('.fables-kicker')).toHaveText(/^#1 · /);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^#1 v1 · /);
   });
 
   test('after Back to a finished Unlimited puzzle, Next puzzle and reload move on', async ({ page }) => {
     await open(page);
     await page.getByRole('link', { name: 'Unlimited', exact: true }).click();
-    await expect(page.locator('.fables-kicker')).toHaveText(/^U-1 · /);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^U-1 v1 · /);
     await choice(page, 3).click(); // U-1's answer
-    await expect(page.locator('.fables-results-tag')).toHaveText('U-1 · Results');
+    await expect(page.locator('.fables-results-tag')).toHaveText('U-1 v1 · Results');
     await expect(page.locator('.fables-tabs [aria-current]')).toHaveText(['Unlimited']);
     await page.goBack();
-    await expect(page.locator('.fables-kicker')).toHaveText(/^U-1 · /);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^U-1 v1 · /);
     await page.getByRole('button', { name: 'Next puzzle' }).click();
-    await expect(page.locator('.fables-kicker')).toHaveText(/^U-2 · /);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^U-2 v1 · /);
     await page.reload();
-    await expect(page.locator('.fables-kicker')).toHaveText(/^U-2 · /);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^U-2 v1 · /);
   });
 
   test('a missed daily puzzle still keeps the streak', async ({ page }) => {
@@ -196,7 +196,7 @@ test.describe('behavior in the browser', () => {
   test('unlimited: own numbers, filters, next puzzle, and no effect on the streak', async ({ page }) => {
     await open(page);
     await page.getByRole('link', { name: 'Unlimited', exact: true }).click();
-    await expect(page.locator('.fables-kicker')).toHaveText(/^U-1 · /);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^U-1 v1 · /);
     await page.locator('select[name="concept"]').selectOption('squares');
     await expect(page.locator('.fables-kicker')).toHaveText(/Square numbers/);
     const answer = await page.evaluate(() => {
@@ -204,7 +204,7 @@ test.describe('behavior in the browser', () => {
       return window.EXAMPLE_BANK.unlimited.find((p) => p.serial === Number(label)).answer;
     });
     await choice(page, answer).click();
-    await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables U-\d+ · Unlimited · 1\/3\n🟩/);
+    await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables U-\d+ v1 · Unlimited · 1\/3\n🟩/);
     const first = (await page.locator('.fables-results-tag').textContent()).split(' ')[0];
     await page.getByRole('button', { name: 'Next puzzle' }).click();
     await expect(page.locator('.fables-kicker')).not.toHaveText(new RegExp(`^${first} `));
@@ -242,6 +242,25 @@ test.describe('behavior in the browser', () => {
     await expect(page.locator('.fables-result')).toHaveClass(/is-solved/);
   });
 
+  test('a puzzle revised since it was started starts fresh, and says so', async ({ page }) => {
+    await open(page);
+    await choice(page, WRONG).click();
+    await expect(page.locator('.fables-pip.miss')).toHaveCount(1);
+    // The same puzzle, now version 2.
+    await page.addInitScript(() => {
+      let bank;
+      Object.defineProperty(window, 'EXAMPLE_BANK', { configurable: true, get: () => bank, set: (b) => { b.daily[0].puzzleVersion = 2; bank = b; } });
+    });
+    await page.reload();
+    await expect(page.locator('.fables-kicker')).toHaveText(/^#1 v2 · /);
+    await expect(page.locator('.fables-notice')).toContainText('This puzzle was revised since you started it');
+    await expect(page.locator('.fables-pip.miss')).toHaveCount(0);
+    await choice(page, WRONG).click();
+    await page.reload();
+    await expect(page.locator('.fables-notice')).toHaveCount(0); // its own guesses now
+    await expect(page.locator('.fables-pip.miss')).toHaveCount(1);
+  });
+
   test('About comes after Help, with the game’s own text and a link to the family', async ({ page }) => {
     await open(page);
     await expect(page.locator('.fables-tabs a')).toHaveText(['Today', 'Unlimited', 'Stats', 'Help', 'About']);
@@ -260,7 +279,7 @@ test.describe('behavior in the browser', () => {
 
   test('past the end of the collection, puzzles come around again, fresh, under their own numbers', async ({ page }) => {
     await page.goto(PAGE.replace('2026-11-23', '2027-03-15')); // the Monday after the last first play
-    await expect(page.locator('.fables-kicker')).toHaveText(/^#\d+ · Mar 15 · Monday · level 1 of 6$/);
+    await expect(page.locator('.fables-kicker')).toHaveText(/^#\d+ v1 · Mar 15 · Monday · level 1 of 6$/);
     const p = await page.evaluate(() => window.Fables.dailyFor(window.Fables.withRepeats(window.EXAMPLE_BANK, '2027-03-15'), '2027-03-15'));
     expect(p.id).toBe(`${p.of}@2`);
     await choice(page, p.answer).click();

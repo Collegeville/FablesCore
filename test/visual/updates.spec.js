@@ -17,7 +17,7 @@ async function serve(page, site) {
     if (path === '/version.json') {
       if (site.offline) return route.abort();
       if (site.none) return route.fulfill({ status: 404, body: '' });
-      return route.fulfill({ json: { build: site.build, day: site.day } });
+      return route.fulfill({ json: { build: site.build, day: site.day, ...(site.version && { version: site.version }) } });
     }
     const file = path === '/' ? 'index.html' : path.slice(1);
     if (file === 'index.html') site.loads++;
@@ -28,7 +28,7 @@ async function serve(page, site) {
       return route.fulfill({ status: 404, body: '' });
     }
     if (file === 'puzzles/bank.js') {
-      body = `${body}\nwindow.EXAMPLE_BANK.build = ${JSON.stringify(site.build)};window.EXAMPLE_BANK.repeats = [];window.EXAMPLE_BANK.daily = window.EXAMPLE_BANK.daily.filter((p) => p.date <= ${JSON.stringify(site.published ?? site.day)});`;
+      body = `${body}\nwindow.EXAMPLE_BANK.build = ${JSON.stringify(site.build)};window.EXAMPLE_BANK.version = ${JSON.stringify(site.version ?? null)};window.EXAMPLE_BANK.repeats = [];window.EXAMPLE_BANK.daily = window.EXAMPLE_BANK.daily.filter((p) => p.date <= ${JSON.stringify(site.published ?? site.day)});`;
     }
     return route.fulfill({ body, contentType: TYPES[extname(file)] ?? 'text/plain' });
   });
@@ -41,7 +41,7 @@ async function start(page, site, time = '2026-11-23T20:00:00') {
   await page.clock.install({ time: at(time) });
   await serve(page, site);
   await page.goto(URL_);
-  await expect(kicker(page)).toHaveText(/^#1 · Nov 23/);
+  await expect(kicker(page)).toHaveText(/^#1 v1 · Nov 23/);
   await page.clock.runFor(2000);
 }
 
@@ -52,7 +52,7 @@ test('a page left open overnight shows the new day when it is looked at again', 
   Object.assign(site, { build: 'b', day: '2026-11-24' });
   await page.clock.setSystemTime(at('2026-11-24T07:00:00'));
   await show(page);
-  await expect(kicker(page)).toHaveText(/^#2 · Nov 24/);
+  await expect(kicker(page)).toHaveText(/^#2 v1 · Nov 24/);
   expect(site.loads).toBe(2);
 });
 
@@ -90,7 +90,7 @@ test('just after midnight it waits for the new puzzle to be published, then show
   expect(site.loads).toBe(1);
   Object.assign(site, { build: 'b', day: '2026-11-24' });
   await page.clock.runFor(6 * 60000);
-  await expect(kicker(page)).toHaveText(/^#2 · Nov 24/);
+  await expect(kicker(page)).toHaveText(/^#2 v1 · Nov 24/);
 });
 
 test('an old copy that comes back after the reload is not reloaded over and over', async ({ page }) => {
@@ -121,5 +121,19 @@ test('a site with no version.json still notices a new day', async ({ page }) => 
   await start(page, site);
   await page.clock.setSystemTime(at('2026-11-24T07:00:00'));
   await show(page);
-  await expect(kicker(page)).toHaveText(/^#2 · Nov 24/);
+  await expect(kicker(page)).toHaveText(/^#2 v1 · Nov 24/);
+});
+
+test('the header shows the game version, a new one is named when it arrives, and shares carry it', async ({ page }) => {
+  const site = { build: 'a', day: '2026-11-23', version: '2026.11.23.1' };
+  await start(page, site);
+  await expect(page.locator('.fables-version')).toHaveText(/^Version 2026\.11\.23\.1 · FablesCore \d+\.\d+\.\d+$/);
+  await page.locator('.fables-choice').nth(1).click(); // in the middle of a puzzle: offered, not reloaded
+  Object.assign(site, { build: 'b', version: '2026.11.23.2' });
+  await show(page);
+  await expect(page.locator('.fables-update')).toContainText('Version 2026.11.23.2 is ready.');
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(page.locator('.fables-version')).toHaveText(/^Version 2026\.11\.23\.2 /);
+  await page.locator('.fables-choice').nth(6).click();
+  await expect(page.locator('.fables-share-text')).toContainText('Game version 2026.11.23.2');
 });

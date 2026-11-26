@@ -25,7 +25,7 @@ test('parts unlock in order, each with its own limit, and the day is shared once
   await expect(steps(page).nth(0)).toHaveAttribute('aria-current', 'step');
   await expect(steps(page).nth(1)).toBeDisabled();
   await expect(steps(page).nth(2)).toBeDisabled();
-  await expect(page.locator('.fables-kicker')).toHaveText(/^#1a · Nov 23 · Find · /);
+  await expect(page.locator('.fables-kicker')).toHaveText(/^#1a v1 · Nov 23 · Find · /);
   await expect(page.locator('.fables-pip')).toHaveCount(4);
 
   // Part a: one miss, then the answer. No share yet; the next part is offered and unlocked.
@@ -40,7 +40,7 @@ test('parts unlock in order, each with its own limit, and the day is shared once
 
   // Part b: two tries only; miss both.
   await page.getByRole('button', { name: /^Next: part b, Audit/ }).click();
-  await expect(page.locator('.fables-kicker')).toHaveText(/^#1b · /);
+  await expect(page.locator('.fables-kicker')).toHaveText(/^#1b v1 · /);
   await expect(page.locator('.fables-pip')).toHaveCount(2);
   const wrongB = await wrongOf(page, 1);
   await choice(page, wrongB).click();
@@ -50,7 +50,7 @@ test('parts unlock in order, each with its own limit, and the day is shared once
   // Part c: solve it. Now the whole day is shared, one row per part, with the streak.
   await page.getByRole('button', { name: /^Next: part c, Rule/ }).click();
   await choice(page, await answerOf(page, 2)).click();
-  await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 · Mon Nov 23 · 2\/3 · Streak 1\n🟥🟩\n🟥🟥\n🟩\n.*\?p=set-1$/);
+  await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 v1 · Mon Nov 23 · 2\/3 · Streak 1\n🟥🟩\n🟥🟥\n🟩\n.*\?p=set-1$/);
   await expect(page.locator('.fables-streak')).toHaveText('Streak: 1 day');
   await expect(page.getByRole('heading', { name: 'Nice work, 2 of 3 solved' })).toBeVisible();
   await expect(page.locator('.fables-message')).toContainText('A fresh set arrives tomorrow.');
@@ -61,13 +61,13 @@ test('parts unlock in order, each with its own limit, and the day is shared once
 
   // A part's link goes back to that part; from there the results are one tap away.
   await page.getByRole('link', { name: 'Part a, Find' }).click();
-  await expect(page.locator('.fables-kicker')).toHaveText(/^#1a · /);
+  await expect(page.locator('.fables-kicker')).toHaveText(/^#1a v1 · /);
   await expect(page.locator('.fables-step.solved')).toHaveCount(2);
   await expect(page.locator('.fables-step.missed')).toHaveCount(1);
 
   // Every part's record is kept; the a/b/c steps let the player look back at any of them.
   await steps(page).nth(1).click();
-  await expect(page.locator('.fables-kicker')).toHaveText(/^#1b · /);
+  await expect(page.locator('.fables-kicker')).toHaveText(/^#1b v1 · /);
   await expect(page.locator('.fables-result')).toHaveClass(/is-lost/);
   await page.getByRole('link', { name: 'See your results' }).click();
   await expect(page.getByRole('heading', { name: 'Nice work, 2 of 3 solved' })).toBeVisible();
@@ -92,7 +92,7 @@ test('an unfinished day does not count toward the streak, and reloading resumes 
   await open(page);
   await choice(page, await answerOf(page, 0)).click();
   await page.reload();
-  await expect(page.locator('.fables-kicker')).toHaveText(/^#1b · /, { timeout: 2000 });
+  await expect(page.locator('.fables-kicker')).toHaveText(/^#1b v1 · /, { timeout: 2000 });
   await page.getByRole('link', { name: 'Stats', exact: true }).click();
   await expect(page.locator('.fables-tile').nth(2)).toContainText('0');
 });
@@ -104,7 +104,7 @@ test('a shared link to one part opens that part', async ({ page }) => {
     if (k === 0) await page.getByRole('button', { name: /^Next: part b/ }).click();
   }
   await page.goto(PAGE.replace('?date=2026-11-23', '?date=2026-11-23&p=set-1a'));
-  await expect(page.locator('.fables-kicker')).toHaveText(/^#1a · /);
+  await expect(page.locator('.fables-kicker')).toHaveText(/^#1a v1 · /);
 });
 
 test('a game can keep its own storage through a store adapter, and tag records', async ({ page }) => {

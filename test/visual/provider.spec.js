@@ -33,7 +33,7 @@ async function open(page, url) {
 
 test('a day loads from the provider, with no ramp labels, and the intro shows once', async ({ page }) => {
   await open(page, at('2026-11-29'));
-  await expect(page.locator('.fables-kicker')).toHaveText('#7a · Nov 29 · Find · Sunday');
+  await expect(page.locator('.fables-kicker')).toHaveText('#7a v1 · Nov 29 · Find · Sunday');
   await expect(page.locator('.fables-intro')).toContainText('How to play the test');
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.reload();
@@ -99,16 +99,16 @@ test('Unlimited levels rise with the run, a miss resets it, and an unfinished pu
 
 test('a shared link opens an Unlimited puzzle or one part of a day through the provider', async ({ page }) => {
   await open(page, at('2026-11-23', '&p=pv-u-5'));
-  await expect(page.locator('.fables-kicker')).toHaveText(/^U-5 · /);
+  await expect(page.locator('.fables-kicker')).toHaveText(/^U-5 v1 · /);
   await page.goto(at('2026-11-25', '&p=pv-3b'));
-  await expect(page.locator('.fables-kicker')).toHaveText(/^#3a · /); // part b is locked until a is done
+  await expect(page.locator('.fables-kicker')).toHaveText(/^#3a v1 · /); // part b is locked until a is done
 });
 
 test('a ramp that starts on a date labels only the days from then on', async ({ page }) => {
   await open(page, at('2026-11-29', '&ramp=2026-11-30'));
-  await expect(page.locator('.fables-kicker')).toHaveText('#7a · Nov 29 · Find · Sunday');
+  await expect(page.locator('.fables-kicker')).toHaveText('#7a v1 · Nov 29 · Find · Sunday');
   await page.goto(at('2026-12-01', '&ramp=2026-11-30'));
-  await expect(page.locator('.fables-kicker')).toHaveText('#9a · Dec 1 · Find · Tuesday · level 2 of 6');
+  await expect(page.locator('.fables-kicker')).toHaveText('#9a v1 · Dec 1 · Find · Tuesday · level 2 of 6');
   await page.getByRole('link', { name: 'Help', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'How the week works' })).toBeVisible();
 });
