@@ -35,8 +35,10 @@ The cost is a wait of up to a week, or one click on **Run workflow**. If you wan
 4. Set an expiry date, generate it, and copy it.
 5. In FablesCore, go to **Settings > Secrets and variables > Actions > New repository secret**, name it `FABLES_NOTIFY_TOKEN`, and paste.
 
-When a token expires, the release still works; games just fall back to their weekly check. An organization-owned GitHub App would avoid expiring tokens, but it is more setup than this family needs now.
+To check the token, open **Actions > Notify games > Run workflow**: it starts the update check in every game, and each game opens a pull request only if it is behind.
+
+When the token is missing, the release still works and the notify step shows a warning; games fall back to their weekly check. When the token has expired or does not cover a game, the notify step fails and names the game, and the release itself is already done; renew the token and run **Notify games** by hand. An organization-owned GitHub App would avoid expiring tokens, but it is more setup than this family needs now.
 
 ## DataFables
 
-DataFables publishes through its own daily workflow from a private repo, and its build copies `site/` into the published site. A vendored copy at `site/fables-core` fits that as it is: the update pull request changes files under `site/`, and the next publish picks them up. DataFables is not using the core yet; moving it over is a separate, planned step.
+DataFables keeps the core at `site/fables-core` (its update workflow sets `CORE_DIR` to that). Its daily publish workflow copies `site/` into the published site, so a merged update pull request goes live with the next publish.

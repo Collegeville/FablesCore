@@ -1,0 +1,42 @@
+name: Notify games
+
+# Starts the Update FablesCore check in every active game in registry.json, so a release
+# reaches the games right away instead of at their weekly check. The Release workflow runs
+# this after each release; it can also be run by hand from the Actions tab (for example to
+# check that the token works, or after a release whose notify step failed).
+#
+# Needs the FABLES_NOTIFY_TOKEN secret: a fine-grained token with Actions: Read and write on
+# the game repos only (see docs/UPDATING.md).
+on:
+  workflow_call:
+    secrets:
+      FABLES_NOTIFY_TOKEN:
+        required: false
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Start the update check in each registered game
+        env:
+          GH_TOKEN: ${{ secrets.FABLES_NOTIFY_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning title=Games not notified::FablesCore has no FABLES_NOTIFY_TOKEN secret, so games will pick this release up at their weekly check. See docs/UPDATING.md to add one."
+            exit 0
+          fi
+          failed=0
+          for repo in $(jq -r '.games[] | select(.active) | .repo' registry.json); do
+            if gh workflow run update-fables-core.yml --repo "$repo"; then
+              echo "Started the update check in $repo"
+            else
+              echo "::error title=Could not notify $repo::Starting its Update FablesCore workflow failed. The token may have expired or may not include $repo."
+              failed=1
+            fi
+          done
+          exit $failed

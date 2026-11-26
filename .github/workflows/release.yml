@@ -44,22 +44,9 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: gh release create "v$VERSION" fables-core.zip --target "$GITHUB_SHA" --title "FablesCore $VERSION" --notes-file notes.md
 
-  # Optional: tell each game right away instead of waiting for its weekly check. Needs a
-  # FABLES_NOTIFY_TOKEN secret (see docs/UPDATING.md); without it this job does nothing.
+  # Tell each game right away instead of waiting for its weekly check (see notify-games.yml).
   notify:
     needs: release
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v5
-      - name: Start the update check in each registered game
-        env:
-          GH_TOKEN: ${{ secrets.FABLES_NOTIFY_TOKEN }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "No FABLES_NOTIFY_TOKEN secret, so games will pick this release up at their next weekly check."
-            exit 0
-          fi
-          for repo in $(jq -r '.games[] | select(.active) | .repo' registry.json); do
-            echo "Starting the update check in $repo"
-            gh workflow run update-fables-core.yml --repo "$repo" || echo "::warning::Could not start the update in $repo"
-          done
+    uses: ./.github/workflows/notify-games.yml
+    secrets:
+      FABLES_NOTIFY_TOKEN: ${{ secrets.FABLES_NOTIFY_TOKEN }}
