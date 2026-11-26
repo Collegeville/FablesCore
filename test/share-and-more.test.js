@@ -8,13 +8,19 @@ const daily = { id: 'ex-d-0012', serial: 12, date: '2026-11-23', answer: 6, sequ
 test('daily share: header with name, number, date, attempts and streak, then the grid', () => {
   const text = F.shareText({ game: 'ExampleFables', puzzle: daily, track: 'daily', rows: [['miss', 'near', 'hit']],
     solved: true, attempts: 3, maxAttempts: 3, streak: 4, url: F.shareUrl('https://x.test/game/', daily) });
-  assert.equal(text, 'ExampleFables #12 · Mon Nov 23 · 3/3 · Streak 4\n🟥🟨🟩\nhttps://x.test/game/?p=ex-d-0012');
+  assert.equal(text, 'ExampleFables #12 v1 · Mon Nov 23 · 3/3 · Streak 4\n🟥🟨🟩\nhttps://x.test/game/?p=ex-d-0012');
+});
+
+test('a share names the puzzle version and, when there is one, the game version', () => {
+  const text = F.shareText({ game: 'G', gameVersion: '2026.11.26.2', puzzle: { ...daily, version: 3 }, track: 'daily', rows: [['hit']],
+    solved: true, attempts: 1, maxAttempts: 3, streak: 1, url: 'https://x.test/?p=ex-d-0012' });
+  assert.equal(text, 'G #12 v3 · Mon Nov 23 · 1/3 · Streak 1\n🟩\nGame version 2026.11.26.2\nhttps://x.test/?p=ex-d-0012');
 });
 
 test('unlimited share uses its own number and never a streak; misses show X', () => {
   const text = F.shareText({ game: 'G', puzzle: { id: 'u-7', serial: 7 }, track: 'unlimited', rows: [['miss', 'miss']],
     solved: false, attempts: 2, maxAttempts: 2, streak: 9 });
-  assert.equal(text, 'G U-7 · Unlimited · X/2\n🟥🟥');
+  assert.equal(text, 'G U-7 v1 · Unlimited · X/2\n🟥🟥');
 });
 
 test('shares never contain the answer or the puzzle content', () => {
@@ -58,7 +64,7 @@ test('unlimited picks prefer unsolved puzzles, honor filters, and repeat only wh
 test('the picture uses the same spoiler-free pieces as the text', () => {
   const parts = F.shareParts({ game: 'G', puzzle: daily, track: 'daily', rows: [['miss', 'bogus', 'hit']],
     solved: true, attempts: 3, maxAttempts: 3, streak: 2, url: 'https://x.test/g/?p=ex-d-0012' });
-  assert.deepEqual(parts, { game: 'G', tag: '#12', when: 'Mon Nov 23', score: '3/3', solved: true, streak: 2,
+  assert.deepEqual(parts, { game: 'G', gameVersion: null, tag: '#12 v1', when: 'Mon Nov 23', score: '3/3', solved: true, streak: 2,
     rows: [['miss', 'skip', 'hit']], url: 'https://x.test/g/?p=ex-d-0012' });
   assert.ok(!JSON.stringify(parts).includes('sequence') && !JSON.stringify(parts).includes('answer'));
 });

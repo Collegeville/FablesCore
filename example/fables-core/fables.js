@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.6.0';
+  const VERSION = '0.7.0';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -121,6 +121,7 @@
           }
         }
         if (p.maxAttempts !== undefined && (!Number.isInteger(p.maxAttempts) || p.maxAttempts < 1)) errors.push(`${where}: maxAttempts must be a whole number`);
+        if (p.version !== undefined && (!Number.isInteger(p.version) || p.version < 1)) errors.push(`${where}: version must be a whole number from 1`);
       }
       const sorted = [...serials].sort((a, b) => a - b);
       if (sorted.some((s, i) => i > 0 && s !== sorted[i - 1] + 1)) errors.push(`${track}: serial numbers must run in sequence with no gaps`);
@@ -281,6 +282,28 @@
   function nextOpenMonday(daily, day) {
     const last = daily.filter((p) => !p.of).map((p) => p.date).reduce((a, b) => (dayNumber(b) > dayNumber(a) ? b : a), day);
     return addDays(weekStart(last), 7);
+  }
+
+// ---------------------------------------------------------------- puzzle versions
+  // A puzzle's version starts at 1 and goes up whenever what a player sees or is graded on changes.
+  // Moving a puzzle to another date or number is not a change. A builder passes the bank it made and
+  // the one it is about to replace, and every puzzle gets its version.
+  const SCHEDULE_FIELDS = ['id', 'serial', 'date', 'version', 'level', 'capstone', 'difficulty', 'difficultyInputs'];
+  function puzzleContent(p) {
+    const keep = (q) => Object.fromEntries(Object.entries(q).filter(([k]) => !SCHEDULE_FIELDS.includes(k)));
+    return JSON.stringify({ ...keep(p), ...(p.parts && { parts: p.parts.map(keep) }) });
+  }
+
+  function versionPuzzles(bank, previous) {
+    const stamp = (list, before) => {
+      const old = new Map((before ?? []).map((p) => [p.id, p]));
+      return list.map((p) => {
+        const was = old.get(p.id);
+        const version = !was ? 1 : puzzleContent(was) === puzzleContent(p) ? was.version ?? 1 : (was.version ?? 1) + 1;
+        return { ...p, version };
+      });
+    };
+    return { ...bank, daily: stamp(bank.daily ?? [], previous?.daily), unlimited: stamp(bank.unlimited ?? [], previous?.unlimited) };
   }
 
   const dailyFor = (bank, date) => (bank.daily ?? []).find((p) => p.date === date) ?? null;
@@ -513,10 +536,11 @@
   const MARKS = { hit: '🟩', near: '🟨', miss: '🟥', skip: '⬜' };
 
   // The pieces of a shared result, used by both the text and the picture.
-  function shareParts({ game, puzzle, track, rows, solved, attempts, maxAttempts, streak, url, score }) {
+  function shareParts({ game, puzzle, track, rows, solved, attempts, maxAttempts, streak, url, score, gameVersion }) {
     return {
       game,
-      tag: track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`,
+      gameVersion: gameVersion || null,
+      tag: `${track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`} v${puzzle.version ?? 1}`,
       when: track === 'unlimited' ? 'Unlimited' : `${WEEKDAYS[weekday(puzzle.date)].slice(0, 3)} ${shortDate(puzzle.date)}`,
       score: score ?? (solved ? `${attempts}/${maxAttempts}` : `X/${maxAttempts}`),
       solved: !!solved,
@@ -531,6 +555,7 @@
     const head = [`${p.game} ${p.tag}`, p.when, p.score];
     if (p.streak != null) head.push(`Streak ${p.streak}`);
     const lines = [head.join(' · '), ...p.rows.map((row) => row.map((m) => MARKS[m]).join(''))];
+    if (p.gameVersion) lines.push(`Game version ${p.gameVersion}`);
     if (p.url) lines.push(p.url);
     return lines.join('\n');
   }
@@ -566,6 +591,12 @@
     c.fillStyle = '#5b6573';
     c.font = `500 34px ${sans}`;
     c.fillText(`${parts.tag} · ${parts.when}`, 90, 192);
+    if (parts.gameVersion) {
+      c.textAlign = 'right';
+      c.font = `400 24px ${sans}`;
+      c.fillText(`Game version ${parts.gameVersion}`, CARD.width - 90, 540);
+      c.textAlign = 'left';
+    }
     c.fillStyle = parts.solved ? CARD_COLORS.hit : '#b42318';
     c.font = `700 120px ${serif}`;
     c.fillText(parts.score, 90, 360);
@@ -875,7 +906,7 @@
       const { outcome, lead, line } = resultMessage({ solved, total, id: puzzle.id, messages: game.messages });
       const verdict = set ? (solved ? `${solved} of ${total} parts solved.` : `None of the ${total} parts solved.`) : verdictFor(solved, used, max);
       const shareInput = {
-        game: game.name, puzzle, track, solved: solved > 0,
+        game: game.name, gameVersion: game.version, puzzle, track, solved: solved > 0,
         ...(set
           ? { rows: states.map((s) => s.marks), score: `${solved}/${total}` }
           : { rows: rowsFor(state.marks, puzzle), attempts: used, maxAttempts: max }),
@@ -912,7 +943,7 @@
           track === 'daily' && h('a', { href: '#unlimited' }, 'Play more in Unlimited'),
           reportLink(last, track, set)),
       ].filter(Boolean));
-      const tag = track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial} · ${shortDate(puzzle.date)}`;
+      const tag = `${track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`} v${puzzle.version ?? 1}${track === 'unlimited' ? '' : ` · ${shortDate(puzzle.date)}`}`;
       shell.main.replaceChildren(...[
         track === 'daily' && practiceNote(puzzle),
         h('p', { class: 'fables-results-tag' }, `${tag} · Results`),
@@ -1151,8 +1182,15 @@
     // `inSet` is { set, k } when this puzzle is part k of a multi-part day.
     function play(puzzle, track, kicker, before, inSet) {
       const maxAttempts = triesFor(puzzle);
-      const state = store.loadState(puzzle.id) ?? { answers: [], marks: [] };
       const day0 = inSet ? inSet.set : puzzle; // the daily entry that carries the date and number
+      // A puzzle revised since it was started starts fresh; a result already recorded is kept.
+      const version = puzzle.version ?? day0.version ?? 1;
+      const saved = store.loadState(puzzle.id);
+      const revised = !!saved && saved.answers?.length > 0 && (saved.v ?? 1) !== version;
+      const state = saved && !revised ? saved : { answers: [], marks: [] };
+      if (revised) store.saveState(puzzle.id, { ...state, v: version });
+      kicker = kicker.replace(/^(\S+)/, `$1 v${version}`);
+      before = [...[].concat(before ?? []), revised && h('p', { class: 'fables-notice' }, 'This puzzle was revised since you started it, so it starts fresh. Any result you finished is still in your stats.')];
       const area = h('div', { class: 'fables-puzzle' });
       const result = h('section', { class: 'fables-result', 'aria-label': 'Result', tabindex: '-1' });
       const head = h('header', { class: 'fables-puzzle-head' },
@@ -1183,6 +1221,7 @@
         state.answers.push(answer);
         state.marks.push(verdict.mark ?? (verdict.correct ? 'hit' : 'miss'));
         if (verdict.correct) state.solved = true;
+        state.v = version;
         store.saveState(puzzle.id, state);
         if (done()) {
           store.record({
@@ -1438,6 +1477,7 @@
             return null; // offline: keep the page that works
           }
           build = published.build ?? null;
+          if (published.version && game.version && published.version !== game.version) return { key: `version ${published.version}`, text: `Version ${published.version} is ready.` };
           if (build && known && build !== known) return { key: `build ${build}`, text: newDay ? 'A new daily puzzle is ready.' : 'A new version is ready.' };
           known ??= build;
           // Just after midnight the new puzzle may not be published yet: wait for it.
@@ -1529,7 +1569,8 @@
     body.replaceChildren(
       h('header', { class: 'fables-masthead' },
         game.icon && h('img', { class: 'fables-logo', src: game.icon, alt: '', width: '40', height: '40' }),
-        h('div', {}, h('h1', {}, h('a', { href: './' }, game.name)), game.tagline && h('p', { class: 'fables-tagline' }, game.tagline))),
+        h('div', {}, h('h1', {}, h('a', { href: './' }, game.name)), game.tagline && h('p', { class: 'fables-tagline' }, game.tagline),
+          game.version && h('p', { class: 'fables-version' }, `Version ${game.version} · FablesCore ${VERSION}`))),
       tabs,
       main,
       live,
@@ -1556,6 +1597,8 @@
     validateBank, assertBank, dailyFor, findPuzzle,
     // playing the collection again
     planRepeats, withRepeats, publishedBank, nextOpenMonday,
+    // versions
+    versionPuzzles, puzzleContent,
     // difficulty
     difficultyScore, adjustDifficulty,
     // unlimited

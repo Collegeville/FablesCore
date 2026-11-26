@@ -41,5 +41,5 @@ test('a multi-part day counts toward the streak only when every part is finished
 test('a multi-part day shares its own score: parts solved out of parts', () => {
   const text = F.shareText({ game: 'G', puzzle: { id: 'd5', serial: 5, date: '2026-11-23' }, track: 'daily',
     rows: [['miss', 'hit'], ['miss', 'miss'], ['hit']], solved: true, score: '2/3', streak: 4 });
-  assert.equal(text, 'G #5 · Mon Nov 23 · 2/3 · Streak 4\n🟥🟩\n🟥🟥\n🟩');
+  assert.equal(text, 'G #5 v1 · Mon Nov 23 · 2/3 · Streak 4\n🟥🟩\n🟥🟥\n🟩');
 });

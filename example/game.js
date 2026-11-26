@@ -13,6 +13,7 @@ Fables.start({
     year: 2026,
     maxAttempts: 3,
     url: 'https://collegeville.github.io/FablesCore/example/',
+    version: window.EXAMPLE_BANK?.version, // set when a site is published; none when opened from disk
     feedbackUrl: 'https://github.com/Collegeville/FablesCore/issues/new?title=Puzzle%20{id}%20({serial})',
     conceptLabels: {
       add: 'Adding the same amount',
