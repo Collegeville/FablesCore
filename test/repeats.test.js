@@ -143,18 +143,18 @@ test('the published site holds only puzzles and repeats through today, and says 
 test('a puzzle keeps its version until what players see changes; moving it is not a change', () => {
   const day = (id, date, extra = {}) => ({ id, serial: 1, date, difficulty: 1, sequence: [1, 2, 3], answer: 1, ...extra });
   const v1 = F.versionPuzzles({ daily: [day('a', '2026-11-23')], unlimited: [{ id: 'u', serial: 1, concept: 'c', level: 1, text: 'x' }] });
-  assert.deepEqual([v1.daily[0].version, v1.unlimited[0].version], [1, 1]);
+  assert.deepEqual([v1.daily[0].puzzleVersion, v1.unlimited[0].puzzleVersion], [1, 1]);
   const moved = F.versionPuzzles({ daily: [day('a', '2027-01-04', { serial: 9, difficulty: 2 })], unlimited: v1.unlimited }, v1);
-  assert.equal(moved.daily[0].version, 1);
+  assert.equal(moved.daily[0].puzzleVersion, 1);
   const changed = F.versionPuzzles({ daily: [day('a', '2026-11-23', { answer: 2 })], unlimited: [{ ...v1.unlimited[0], text: 'y' }] }, moved);
-  assert.deepEqual([changed.daily[0].version, changed.unlimited[0].version], [2, 2]);
-  assert.equal(F.versionPuzzles(changed, changed).daily[0].version, 2); // rebuilding changes nothing
+  assert.deepEqual([changed.daily[0].puzzleVersion, changed.unlimited[0].puzzleVersion], [2, 2]);
+  assert.equal(F.versionPuzzles(changed, changed).daily[0].puzzleVersion, 2); // rebuilding changes nothing
   const counts = (p) => F.puzzleContent({ ...p, text: String(p.text).replace(/\d+/g, '#') });
   const noted = F.versionPuzzles({ unlimited: [{ ...changed.unlimited[0], text: 'took 41 steps' }] }, { unlimited: [{ ...changed.unlimited[0], text: 'took 40 steps' }] }, { content: counts });
-  assert.equal(noted.unlimited[0].version, 2, 'counts that vary between machines are not a change');
+  assert.equal(noted.unlimited[0].puzzleVersion, 2, 'counts that vary between machines are not a change');
   const parts = F.versionPuzzles({ daily: [day('s', '2026-11-23', { parts: [{ id: 's-a', text: 'p' }] })] }, { daily: [day('s', '2026-11-23', { parts: [{ id: 's-a', text: 'q' }] })] });
-  assert.equal(parts.daily[0].version, 2);
-  assert.match(F.validateBank({ daily: [day('a', '2026-11-23', { version: 0, capstone: false })] }, { ramp: false }).errors.join(), /version must be a whole number/);
+  assert.equal(parts.daily[0].puzzleVersion, 2);
+  assert.match(F.validateBank({ daily: [day('a', '2026-11-23', { puzzleVersion: 0, capstone: false })] }, { ramp: false }).errors.join(), /puzzleVersion must be a whole number/);
 });
 
 test('the game version is the day of the change being published and which change of that day it is', () => {

@@ -121,7 +121,7 @@
           }
         }
         if (p.maxAttempts !== undefined && (!Number.isInteger(p.maxAttempts) || p.maxAttempts < 1)) errors.push(`${where}: maxAttempts must be a whole number`);
-        if (p.version !== undefined && (!Number.isInteger(p.version) || p.version < 1)) errors.push(`${where}: version must be a whole number from 1`);
+        if (p.puzzleVersion !== undefined && (!Number.isInteger(p.puzzleVersion) || p.puzzleVersion < 1)) errors.push(`${where}: puzzleVersion must be a whole number from 1`);
       }
       const sorted = [...serials].sort((a, b) => a - b);
       if (sorted.some((s, i) => i > 0 && s !== sorted[i - 1] + 1)) errors.push(`${track}: serial numbers must run in sequence with no gaps`);
@@ -285,11 +285,11 @@
   }
 
 // ---------------------------------------------------------------- puzzle versions
-  // A puzzle's version starts at 1 and goes up whenever what a player sees or is graded on changes.
+  // A puzzle's version (`puzzleVersion`, so it never meets a game's own fields) starts at 1 and goes up whenever what a player sees or is graded on changes.
   // Moving a puzzle to another date or number is not a change. A builder passes the bank it made and
   // the one it is about to replace, and every puzzle gets its version. `content` may say what to
   // compare, for a game whose text includes details that vary between machines (measured counts).
-  const SCHEDULE_FIELDS = ['id', 'serial', 'date', 'version', 'level', 'capstone', 'difficulty', 'difficultyInputs'];
+  const SCHEDULE_FIELDS = ['id', 'serial', 'date', 'puzzleVersion', 'level', 'capstone', 'difficulty', 'difficultyInputs'];
   function puzzleContent(p) {
     const keep = (q) => Object.fromEntries(Object.entries(q).filter(([k]) => !SCHEDULE_FIELDS.includes(k)));
     return JSON.stringify({ ...keep(p), ...(p.parts && { parts: p.parts.map(keep) }) });
@@ -300,8 +300,8 @@
       const old = new Map((before ?? []).map((p) => [p.id, p]));
       return list.map((p) => {
         const was = old.get(p.id);
-        const version = !was ? 1 : content(was) === content(p) ? was.version ?? 1 : (was.version ?? 1) + 1;
-        return { ...p, version };
+        const puzzleVersion = !was ? 1 : content(was) === content(p) ? was.puzzleVersion ?? 1 : (was.puzzleVersion ?? 1) + 1;
+        return { ...p, puzzleVersion };
       });
     };
     return { ...bank, daily: stamp(bank.daily ?? [], previous?.daily), unlimited: stamp(bank.unlimited ?? [], previous?.unlimited) };
@@ -541,7 +541,7 @@
     return {
       game,
       gameVersion: gameVersion || null,
-      tag: `${track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`} v${puzzle.version ?? 1}`,
+      tag: `${track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`} v${puzzle.puzzleVersion ?? 1}`,
       when: track === 'unlimited' ? 'Unlimited' : `${WEEKDAYS[weekday(puzzle.date)].slice(0, 3)} ${shortDate(puzzle.date)}`,
       score: score ?? (solved ? `${attempts}/${maxAttempts}` : `X/${maxAttempts}`),
       solved: !!solved,
@@ -944,7 +944,7 @@
           track === 'daily' && h('a', { href: '#unlimited' }, 'Play more in Unlimited'),
           reportLink(last, track, set)),
       ].filter(Boolean));
-      const tag = `${track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`} v${puzzle.version ?? 1}${track === 'unlimited' ? '' : ` · ${shortDate(puzzle.date)}`}`;
+      const tag = `${track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`} v${puzzle.puzzleVersion ?? 1}${track === 'unlimited' ? '' : ` · ${shortDate(puzzle.date)}`}`;
       shell.main.replaceChildren(...[
         track === 'daily' && practiceNote(puzzle),
         h('p', { class: 'fables-results-tag' }, `${tag} · Results`),
@@ -1185,7 +1185,7 @@
       const maxAttempts = triesFor(puzzle);
       const day0 = inSet ? inSet.set : puzzle; // the daily entry that carries the date and number
       // A puzzle revised since it was started starts fresh; a result already recorded is kept.
-      const version = puzzle.version ?? day0.version ?? 1;
+      const version = puzzle.puzzleVersion ?? day0.puzzleVersion ?? 1;
       const saved = store.loadState(puzzle.id);
       const revised = !!saved && saved.answers?.length > 0 && (saved.v ?? 1) !== version;
       const state = saved && !revised ? saved : { answers: [], marks: [] };

@@ -249,7 +249,7 @@ test.describe('behavior in the browser', () => {
     // The same puzzle, now version 2.
     await page.addInitScript(() => {
       let bank;
-      Object.defineProperty(window, 'EXAMPLE_BANK', { configurable: true, get: () => bank, set: (b) => { b.daily[0].version = 2; bank = b; } });
+      Object.defineProperty(window, 'EXAMPLE_BANK', { configurable: true, get: () => bank, set: (b) => { b.daily[0].puzzleVersion = 2; bank = b; } });
     });
     await page.reload();
     await expect(page.locator('.fables-kicker')).toHaveText(/^#1 v2 · /);

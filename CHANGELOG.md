@@ -5,7 +5,7 @@ Every release is a version tag (`v0.1.0`) with a section here. Games record the 
 ## 0.7.0
 
 - **Game versions** (issue #13): `fables-core/build-site.js` stamps each publish with the game version, the date of the change being published and which change of that day it is (2026.11.26.2), in the published bank and in `version.json`. It changes only when the repository does. A game passes it as `game.version`; the header shows it with the FablesCore version, and every shared result and share picture carries it. An open page that finds a newer one names it ("Version 2026.11.26.3 is ready.") as it reloads or offers Refresh. **Each game's publish workflow needs the full history:** `fetch-depth: 0` on `actions/checkout`.
-- **Puzzle versions:** a puzzle's `version` starts at 1 and goes up when what players see or are graded on changes; moving it to another date or number is not a change. `Fables.versionPuzzles(bank, previous)` sets them when a bank is built. The version is in the puzzle's line (`#4 v1 · …`), the results screen and every share. A puzzle revised since a player started it starts fresh, with a note; a finished result stays in their stats. Store adapters should save and return the `v` field of a puzzle's state.
+- **Puzzle versions:** a puzzle's `puzzleVersion` starts at 1 and goes up when what players see or are graded on changes; moving it to another date or number is not a change. `Fables.versionPuzzles(bank, previous)` sets them when a bank is built. The version is in the puzzle's line (`#4 v1 · …`), the results screen and every share. A puzzle revised since a player started it starts fresh, with a note; a finished result stays in their stats. Store adapters should save and return the `v` field of a puzzle's state.
 
 ## 0.6.0
 

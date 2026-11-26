@@ -12,7 +12,7 @@ test('daily share: header with name, number, date, attempts and streak, then the
 });
 
 test('a share names the puzzle version and, when there is one, the game version', () => {
-  const text = F.shareText({ game: 'G', gameVersion: '2026.11.26.2', puzzle: { ...daily, version: 3 }, track: 'daily', rows: [['hit']],
+  const text = F.shareText({ game: 'G', gameVersion: '2026.11.26.2', puzzle: { ...daily, puzzleVersion: 3 }, track: 'daily', rows: [['hit']],
     solved: true, attempts: 1, maxAttempts: 3, streak: 1, url: 'https://x.test/?p=ex-d-0012' });
   assert.equal(text, 'G #12 v3 · Mon Nov 23 · 1/3 · Streak 1\n🟩\nGame version 2026.11.26.2\nhttps://x.test/?p=ex-d-0012');
 });
