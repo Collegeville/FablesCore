@@ -149,6 +149,9 @@ test('a puzzle keeps its version until what players see changes; moving it is no
   const changed = F.versionPuzzles({ daily: [day('a', '2026-11-23', { answer: 2 })], unlimited: [{ ...v1.unlimited[0], text: 'y' }] }, moved);
   assert.deepEqual([changed.daily[0].version, changed.unlimited[0].version], [2, 2]);
   assert.equal(F.versionPuzzles(changed, changed).daily[0].version, 2); // rebuilding changes nothing
+  const counts = (p) => F.puzzleContent({ ...p, text: String(p.text).replace(/\d+/g, '#') });
+  const noted = F.versionPuzzles({ unlimited: [{ ...changed.unlimited[0], text: 'took 41 steps' }] }, { unlimited: [{ ...changed.unlimited[0], text: 'took 40 steps' }] }, { content: counts });
+  assert.equal(noted.unlimited[0].version, 2, 'counts that vary between machines are not a change');
   const parts = F.versionPuzzles({ daily: [day('s', '2026-11-23', { parts: [{ id: 's-a', text: 'p' }] })] }, { daily: [day('s', '2026-11-23', { parts: [{ id: 's-a', text: 'q' }] })] });
   assert.equal(parts.daily[0].version, 2);
   assert.match(F.validateBank({ daily: [day('a', '2026-11-23', { version: 0, capstone: false })] }, { ramp: false }).errors.join(), /version must be a whole number/);

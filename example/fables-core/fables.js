@@ -287,19 +287,20 @@
 // ---------------------------------------------------------------- puzzle versions
   // A puzzle's version starts at 1 and goes up whenever what a player sees or is graded on changes.
   // Moving a puzzle to another date or number is not a change. A builder passes the bank it made and
-  // the one it is about to replace, and every puzzle gets its version.
+  // the one it is about to replace, and every puzzle gets its version. `content` may say what to
+  // compare, for a game whose text includes details that vary between machines (measured counts).
   const SCHEDULE_FIELDS = ['id', 'serial', 'date', 'version', 'level', 'capstone', 'difficulty', 'difficultyInputs'];
   function puzzleContent(p) {
     const keep = (q) => Object.fromEntries(Object.entries(q).filter(([k]) => !SCHEDULE_FIELDS.includes(k)));
     return JSON.stringify({ ...keep(p), ...(p.parts && { parts: p.parts.map(keep) }) });
   }
 
-  function versionPuzzles(bank, previous) {
+  function versionPuzzles(bank, previous, { content = puzzleContent } = {}) {
     const stamp = (list, before) => {
       const old = new Map((before ?? []).map((p) => [p.id, p]));
       return list.map((p) => {
         const was = old.get(p.id);
-        const version = !was ? 1 : puzzleContent(was) === puzzleContent(p) ? was.version ?? 1 : (was.version ?? 1) + 1;
+        const version = !was ? 1 : content(was) === content(p) ? was.version ?? 1 : (was.version ?? 1) + 1;
         return { ...p, version };
       });
     };
