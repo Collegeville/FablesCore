@@ -32,10 +32,13 @@ jobs:
           fi
           failed=0
           for repo in $(jq -r '.games[] | select(.active) | .repo' registry.json); do
-            if gh workflow run update-fables-core.yml --repo "$repo"; then
-              echo "Started the update check in $repo"
+            # The REST calls need only what the token has (Actions: write, Metadata: read);
+            # `gh workflow run` also queries GraphQL, which this token cannot.
+            if branch=$(gh api "repos/$repo" --jq .default_branch 2>err.txt) &&
+               gh api -X POST "repos/$repo/actions/workflows/update-fables-core.yml/dispatches" -f ref="$branch" 2>err.txt; then
+              echo "Started the update check in $repo ($branch)"
             else
-              echo "::error title=Could not notify $repo::Starting its Update FablesCore workflow failed. The token may have expired or may not include $repo."
+              echo "::error title=Could not notify $repo::$(tr '\n' ' ' < err.txt) The token may have expired or may not include $repo."
               failed=1
             fi
           done
