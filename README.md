@@ -1,6 +1,6 @@
 # FablesCore
 
-The shared framework for the Fables games: small daily puzzle games that keep people sharp at the skills AI now does quickly, so they can still judge its work. Five games are live, and all of them run on FablesCore:
+The shared framework for the Fables games: small daily puzzle games for the skills that matter more as AI changes how software is made. Four of them keep people sharp at work AI now does quickly, so they can still judge it. UDXFables trains what grows in importance as AI automates the mechanics: user and developer experience, shaped by people working with AI, for the people and AI agents who build and use a product. Five games are live, and all of them run on FablesCore:
 
 | Game | What it asks | For |
 | --- | --- | --- |
@@ -8,7 +8,7 @@ The shared framework for the Fables games: small daily puzzle games that keep pe
 | [CodeFables](https://collegeville.github.io/CodeFables/) | Read short Python snippets, predict what they do, and spot what's wrong. | Beginning programmers (CS1) and anyone who judges code |
 | [ScaleFables](https://collegeville.github.io/ScaleFables/) | How does it grow, and how does it speed up? | Students past CS1 and anyone who reasons about performance |
 | [TestFables](https://collegeville.github.io/TestFables/) | When can you trust a green checkmark? | Undergraduate students who know basic programming |
-| [UDXFables](https://collegeville.github.io/UDXFables/) | Who is it for, and what do they need right now? For people and for agents. | Anyone who builds software, tools, or communities |
+| [UDXFables](https://collegeville.github.io/UDXFables/) | Who is it for, and what do they need right now? For the people and agents who build and use a product. | Anyone who builds software, tools, or communities |
 
 FablesCore holds everything the games have in common, so it is improved once and every game gets it:
 
