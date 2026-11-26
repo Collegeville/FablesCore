@@ -79,6 +79,7 @@ Fables.start({
     feedbackUrl: 'https://github.com/Collegeville/CodeFables/issues/new?title=Puzzle%20{id}',
     conceptLabels: { loops: 'Loops' },                             // names in the Unlimited picker
     help: '<h2>How to play</h2><p>…</p>',
+    about: '<h2>Why these puzzles</h2><p>…</p>',                    // optional: an About tab after Help
     gamesUrl: 'https://collegeville.github.io/games/',             // optional: where "Play more Fables?" goes; this is the default
     messages: { solved: ['…'], some: ['…'], missed: ['…'] },       // optional: the game's own lines for the results screen
     timeZone: 'America/Chicago',   // optional: when the daily puzzle turns over; default is the player's own day
@@ -94,6 +95,8 @@ Fables.start({
 **`render(puzzle, el, play)`** draws the puzzle into `el`. `play` has `answers` (the player's answers so far), `marks`, `done`, `solved`, `attemptsLeft`, and `submit(answer)`. The core calls `render` again after every answer, so the game only draws the current state: mark tried answers, and once `done` is true, show the correct one and disable input.
 
 **`check(puzzle, answer)`** returns `{ correct, mark }`. Marks are `hit` (🟩), `near` (🟨), `miss` (🟥) or `skip` (⬜). The core only ever sees marks, so shared results cannot spoil the answer.
+
+**`about`** (optional) adds an **About** tab after Help: what the puzzles are, why they matter now that AI does more of the work, and the big ideas a regular player learns. The core closes it with a line on the Fables family and a link to the Games page.
 
 Everything else (choosing today's puzzle, the Unlimited picker, recording, streaks, the announcement, the results screen, the share box, Stats and Help) is the core's job.
 

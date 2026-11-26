@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.5.0';
+  const VERSION = '0.6.0';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -802,6 +802,7 @@
       if (view === 'archive' && game.archive) return showArchive(token);
       if (view === 'stats') return showStats();
       if (view === 'help') return showHelp();
+      if (view === 'about' && game.about) return showAbout();
       return showToday(token);
     }
     let linkedDaily = null;
@@ -1366,6 +1367,17 @@
       ].filter(Boolean));
     }
 
+    // ---- About: the game's purpose, why it matters now, and what regular players learn (game.about),
+    // then a word on the family it belongs to.
+    function showAbout() {
+      shell.main.replaceChildren(
+        h('section', { class: 'fables-help fables-about', html: game.about }),
+        h('section', { class: 'fables-help' },
+          h('h2', {}, 'The Fables family'),
+          h('p', {}, `${game.name} is one of the Fables games: short daily puzzles for the skills that matter more as AI changes how we work. `,
+            h('a', { href: game.gamesUrl ?? GAMES_URL }, 'Play more Fables?'))));
+    }
+
     function showHelp() {
       const settings = store.settings();
       const climb = 'they get harder from Monday to Saturday, and Sunday brings a capstone that mixes the week’s ideas.';
@@ -1511,7 +1523,7 @@
     const year = game.year ?? 2026;
     const live = h('div', { class: 'fables-sr', 'aria-live': 'polite', role: 'status' });
     const tabs = h('nav', { class: 'fables-tabs', 'aria-label': 'Sections' },
-      [['today', 'Today'], ['unlimited', 'Unlimited'], ['stats', 'Stats'], ['help', 'Help']]
+      [['today', 'Today'], ['unlimited', 'Unlimited'], ['stats', 'Stats'], ['help', 'Help'], ...(game.about ? [['about', 'About']] : [])]
         .map(([view, label]) => h('a', { href: `#${view}`, 'data-view': view }, label)));
     const main = h('main', { class: 'fables-main', id: 'fables-main' });
     body.replaceChildren(

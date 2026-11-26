@@ -2,6 +2,10 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.6.0
+
+- **About tab:** `game.about` (HTML) adds an About tab after Help, for the game's purpose, its motivation relative to AI, and the big ideas players learn. The core adds a closing line on the Fables family, linking to the Games page. On phones the tabs tighten so six (with Archive) fit on one line.
+
 ## 0.5.0
 
 - **Results screen:** the end of a game opens its own screen: congratulations when everything was solved, encouragement when it wasn't, and something in between ("Nice work, 2 of 3 solved") for a multi-part day with some parts solved. It holds the score, streak, explanation, moral and share box, a link back to the puzzle, and a **Play more Fables?** link to the Games page. It opens after a single puzzle, after the last part of a multi-part day, and after every Unlimited or Archive puzzle; earlier parts still show their result below the board. The browser's Back button returns to the puzzle.
