@@ -26,6 +26,14 @@ Fables.start({
       <p>Each puzzle shows eight numbers that follow one rule, except that one number was changed.
       Tap the number that breaks the pattern. You have three tries.</p>
       <p>ExampleFables is the sample game for FablesCore, the shared framework behind the Fables games.</p>`,
+    about: `
+      <h2>Why these puzzles</h2>
+      <p>ExampleFables shows how a Fables game is built. Each puzzle is a row of numbers with one that breaks the pattern.</p>
+      <h2>What you'll learn</h2>
+      <ol>
+        <li><strong>Patterns:</strong> adding, multiplying, squares and alternation.</li>
+        <li><strong>Checking:</strong> testing a guess against every number, not just the first few.</li>
+      </ol>`,
   },
 
   bank: window.EXAMPLE_BANK,

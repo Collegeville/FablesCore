@@ -61,9 +61,9 @@ for (const [size, viewport] of Object.entries(sizes)) {
         await axe(page);
       });
 
-      test('stats, help and unlimited pass accessibility checks', async ({ page }) => {
+      test('stats, help, about and unlimited pass accessibility checks', async ({ page }) => {
         await open(page);
-        for (const tab of ['Unlimited', 'Stats', 'Help']) {
+        for (const tab of ['Unlimited', 'Stats', 'Help', 'About']) {
           await page.getByRole('link', { name: tab, exact: true }).click();
           await axe(page);
         }
@@ -240,6 +240,17 @@ test.describe('behavior in the browser', () => {
     await expect(choice(page, missed.answer)).toBeEnabled();
     await choice(page, missed.answer).click();
     await expect(page.locator('.fables-result')).toHaveClass(/is-solved/);
+  });
+
+  test('About comes after Help, with the game’s own text and a link to the family', async ({ page }) => {
+    await open(page);
+    await expect(page.locator('.fables-tabs a')).toHaveText(['Today', 'Unlimited', 'Stats', 'Help', 'About']);
+    const tops = await page.locator('.fables-tabs a').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top));
+    expect(new Set(tops).size).toBe(1); // one line, even on a phone
+    await page.getByRole('link', { name: 'About', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Why these puzzles' })).toBeVisible();
+    await expect(page.locator('.fables-tabs [aria-current]')).toHaveText(['About']);
+    await expect(page.getByRole('link', { name: 'Play more Fables?' })).toHaveAttribute('href', 'https://collegeville.github.io/games/');
   });
 
   test('a date with no puzzle says so and offers Unlimited', async ({ page }) => {

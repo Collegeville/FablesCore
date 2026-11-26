@@ -80,6 +80,12 @@ body.fables {
   border-bottom: 2px solid transparent;
 }
 .fables-tabs a[aria-current] { color: var(--ink); border-bottom-color: var(--accent); }
+/* Six tabs (with Archive and About) still fit one line on a phone. */
+@media (max-width: 420px) {
+  .fables-tabs { gap: 0; padding: 6px 8px 0; }
+  .fables-tabs a { padding: 8px 7px; }
+}
+.fables-about ol li { margin-bottom: 6px; }
 
 .fables-main { padding: 12px 16px 32px; }
 .fables-main h2 { margin: 18px 0 8px; font: 600 1.2rem/1.2 var(--serif); }
