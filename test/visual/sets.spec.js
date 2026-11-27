@@ -50,7 +50,7 @@ test('parts unlock in order, each with its own limit, and the day is shared once
   // Part c: solve it. Now the whole day is shared, one row per part, with the streak.
   await page.getByRole('button', { name: /^Next: part c, Rule/ }).click();
   await choice(page, await answerOf(page, 2)).click();
-  await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 v1 · Mon Nov 23 · 2\/3 · Streak 1\n🟥🟩\n🟥🟥\n🟩\n.*\?p=set-1$/);
+  await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 v1 · Mon Nov 23 · 2\/3 · Streak 1\n.*\?p=set-1\n🟥🟩\n🟥🟥\n🟩$/);
   await expect(page.locator('.fables-streak')).toHaveText('Streak: 1 day');
   await expect(page.getByRole('heading', { name: 'Nice work, 2 of 3 solved' })).toBeVisible();
   await expect(page.locator('.fables-message')).toContainText('A fresh set arrives tomorrow.');

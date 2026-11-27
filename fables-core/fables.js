@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.7.0';
+  const VERSION = '0.7.1';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -555,9 +555,11 @@
     const p = shareParts(opts);
     const head = [`${p.game} ${p.tag}`, p.when, p.score];
     if (p.streak != null) head.push(`Streak ${p.streak}`);
-    const lines = [head.join(' · '), ...p.rows.map((row) => row.map((m) => MARKS[m]).join(''))];
+    // The link goes right under the header, never first or last: Messages on iPhone and Mac splits
+    // a link at the start or end of a message into a bubble of its own, so a pasted result (or
+    // several) would arrive as more than one message.
+    const lines = [head.join(' · '), ...(p.url ? [p.url] : []), ...p.rows.map((row) => row.map((m) => MARKS[m]).join(''))];
     if (p.gameVersion) lines.push(`Game version ${p.gameVersion}`);
-    if (p.url) lines.push(p.url);
     return lines.join('\n');
   }
 

@@ -8,19 +8,28 @@ const daily = { id: 'ex-d-0012', serial: 12, date: '2026-11-23', answer: 6, sequ
 test('daily share: header with name, number, date, attempts and streak, then the grid', () => {
   const text = F.shareText({ game: 'ExampleFables', puzzle: daily, track: 'daily', rows: [['miss', 'near', 'hit']],
     solved: true, attempts: 3, maxAttempts: 3, streak: 4, url: F.shareUrl('https://x.test/game/', daily) });
-  assert.equal(text, 'ExampleFables #12 v1 · Mon Nov 23 · 3/3 · Streak 4\n🟥🟨🟩\nhttps://x.test/game/?p=ex-d-0012');
+  assert.equal(text, 'ExampleFables #12 v1 · Mon Nov 23 · 3/3 · Streak 4\nhttps://x.test/game/?p=ex-d-0012\n🟥🟨🟩');
 });
 
 test('a share names the puzzle version and, when there is one, the game version', () => {
   const text = F.shareText({ game: 'G', gameVersion: '2026.11.26.2', puzzle: { ...daily, puzzleVersion: 3 }, track: 'daily', rows: [['hit']],
     solved: true, attempts: 1, maxAttempts: 3, streak: 1, url: 'https://x.test/?p=ex-d-0012' });
-  assert.equal(text, 'G #12 v3 · Mon Nov 23 · 1/3 · Streak 1\n🟩\nGame version 2026.11.26.2\nhttps://x.test/?p=ex-d-0012');
+  assert.equal(text, 'G #12 v3 · Mon Nov 23 · 1/3 · Streak 1\nhttps://x.test/?p=ex-d-0012\n🟩\nGame version 2026.11.26.2');
 });
 
 test('unlimited share uses its own number and never a streak; misses show X', () => {
   const text = F.shareText({ game: 'G', puzzle: { id: 'u-7', serial: 7 }, track: 'unlimited', rows: [['miss', 'miss']],
     solved: false, attempts: 2, maxAttempts: 2, streak: 9 });
   assert.equal(text, 'G U-7 v1 · Unlimited · X/2\n🟥🟥');
+});
+
+test('the link is never first or last, so Messages keeps a pasted result, or several, in one message', () => {
+  const one = (gameVersion) => F.shareText({ game: 'G', gameVersion, puzzle: daily, track: 'daily', rows: [['miss'], ['hit']],
+    solved: true, score: '1/2', streak: 1, url: 'https://x.test/?p=ex-d-0012' });
+  for (const text of [one('2026.11.26.2'), one(undefined), [one('2026.11.26.2'), one(undefined)].join('\n\n')]) {
+    const words = text.split(/\s+/);
+    assert.ok(!/^https?:/.test(words[0]) && !/^https?:/.test(words[words.length - 1]), text);
+  }
 });
 
 test('shares never contain the answer or the puzzle content', () => {
