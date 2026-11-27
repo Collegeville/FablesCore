@@ -2,6 +2,10 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.7.1
+
+- **One message per paste:** a shared result now puts its link right under the header line, never first or last. Messages on iPhone and Mac splits a link at the start or end of a message into a bubble of its own, so a pasted result, or several pasted together, arrived as more than one message.
+
 ## 0.7.0
 
 - **Game versions** (issue #13): `fables-core/build-site.js` stamps each publish with the game version, the date of the change being published and which change of that day it is (2026.11.26.2), in the published bank and in `version.json`. It changes only when the repository does. A game passes it as `game.version`; the header shows it with the FablesCore version, and every shared result and share picture carries it. An open page that finds a newer one names it ("Version 2026.11.26.3 is ready.") as it reloads or offers Refresh. **Each game's publish workflow needs the full history:** `fetch-depth: 0` on `actions/checkout`.
