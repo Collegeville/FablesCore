@@ -81,7 +81,7 @@ test.describe('behavior in the browser', () => {
     await choice(page, RIGHT).click();
     await expect(page.locator('[aria-live="polite"]')).toHaveText(/^Congratulations! .* Solved in two tries\. Moral: /);
     await expect(page.locator('.fables-results')).toBeFocused();
-    await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 v1 · Mon Nov 23 · 2\/3 · Streak 1\n.*\?p=ex-d-0001\n🟥🟩$/);
+    await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables #1 v1 · Mon Nov 23 · 2\/3 · Streak 1\n🟥🟩\n.*\?p=ex-d-0001$/);
   });
 
   test('the success animation plays, and stops under reduced motion', async ({ browser }) => {
@@ -204,7 +204,7 @@ test.describe('behavior in the browser', () => {
       return window.EXAMPLE_BANK.unlimited.find((p) => p.serial === Number(label)).answer;
     });
     await choice(page, answer).click();
-    await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables U-\d+ v1 · Unlimited · 1\/3\n.*\?p=\S+\n🟩/);
+    await expect(page.locator('.fables-share-text')).toHaveText(/^ExampleFables U-\d+ v1 · Unlimited · 1\/3\n🟩/);
     const first = (await page.locator('.fables-results-tag').textContent()).split(' ')[0];
     await page.getByRole('button', { name: 'Next puzzle' }).click();
     await expect(page.locator('.fables-kicker')).not.toHaveText(new RegExp(`^${first} `));
