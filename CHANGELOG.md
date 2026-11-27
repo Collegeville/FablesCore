@@ -2,6 +2,10 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.8.0
+
+- **The Collegeville mark:** every game's header now shows the Collegeville mark, small, at the far right, linking to the Games page (`game.gamesUrl` if set). It is built into the core, so a game needs no file or code change. The game's own icon and name still lead.
+
 ## 0.7.2
 
 - **The link goes last again:** reverts 0.7.1. With the link at the end, Messages shows the game's colored link preview, which players prefer, even though it arrives as its own bubble.

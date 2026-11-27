@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.7.2';
+  const VERSION = '0.8.0';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -641,6 +641,10 @@
   // puzzle always shows the same line. A game can pass its own lists as `game.messages`.
 
   const GAMES_URL = 'https://collegeville.github.io/games/';
+
+  // The Collegeville mark, shown small at the right of every game's header and linking to the
+  // Games page. Inline, so it needs no file and works wherever a game keeps its copy of the core.
+  const COLLEGEVILLE_MARK = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#1b2a49"/><path d="M362.07 149.93 A150 150 0 1 0 362.07 362.07" fill="none" stroke="#8fa4ff" stroke-width="64" stroke-linecap="round"/><circle cx="362.07" cy="149.93" r="32" fill="#ffb84d"/><path d="M190 300 L250 250 L300 275 L350 205" fill="none" stroke="#fff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/></svg>');
 
   const MESSAGES = {
     solved: [
@@ -1554,7 +1558,7 @@
     return { store, day, rerender: () => route() };
   }
 
-  // The page shell: header with icon and name, tabs, main area, a screen-reader live region, and
+  // The page shell: header with icon, name and the Collegeville mark, tabs, main area, a screen-reader live region, and
   // the standard footer. The game's color is set once here so the whole page follows it.
   function mountShell(game) {
     const body = doc.body;
@@ -1571,7 +1575,9 @@
       h('header', { class: 'fables-masthead' },
         game.icon && h('img', { class: 'fables-logo', src: game.icon, alt: '', width: '40', height: '40' }),
         h('div', {}, h('h1', {}, h('a', { href: './' }, game.name)), game.tagline && h('p', { class: 'fables-tagline' }, game.tagline),
-          game.version && h('p', { class: 'fables-version' }, `Version ${game.version} · FablesCore ${VERSION}`))),
+          game.version && h('p', { class: 'fables-version' }, `Version ${game.version} · FablesCore ${VERSION}`)),
+        h('a', { class: 'fables-family', href: game.gamesUrl ?? GAMES_URL, 'aria-label': 'Collegeville games', title: 'Collegeville games' },
+          h('img', { src: COLLEGEVILLE_MARK, alt: '', width: '28', height: '28' }))),
       tabs,
       main,
       live,
