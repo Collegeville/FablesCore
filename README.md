@@ -12,7 +12,7 @@ The shared framework for the Fables games: small daily puzzle games for the skil
 
 FablesCore holds everything the games have in common, so it is improved once and every game gets it:
 
-- **Page shell:** header with the game's icon and name, the Today, Unlimited, Stats and Help tabs, and the standard footer. Light and dark themes, phone and desktop layouts.
+- **Page shell:** header with the game's icon and name, the Collegeville mark linking to the Games page, the Today, Unlimited, Stats and Help tabs, and the standard footer. Light and dark themes, phone and desktop layouts.
 - **Feedback:** right and wrong answers are announced instantly and unmistakably, with color, an icon and a sentence ("Solved in two tries."), a short animation that respects reduced-motion settings, a screen-reader announcement, and an optional chime that is off by default.
 - **Results screen:** the end of a game opens its own screen, with congratulations, encouragement or (for a day with some parts solved) something in between, then the score, streak, explanation and moral, a link back to the puzzle, and a **Play more Fables?** link to the Games page.
 - **Sharing:** a spoiler-free emoji grid with the game, puzzle number, date, tries and streak, a Copy button that confirms, the phone's share sheet, and a drawn result picture to save or share.
