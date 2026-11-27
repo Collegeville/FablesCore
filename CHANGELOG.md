@@ -2,6 +2,10 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.7.2
+
+- **The link goes last again:** reverts 0.7.1. With the link at the end, Messages shows the game's colored link preview, which players prefer, even though it arrives as its own bubble.
+
 ## 0.7.1
 
 - **One message per paste:** a shared result now puts its link right under the header line, never first or last. Messages on iPhone and Mac splits a link at the start or end of a message into a bubble of its own, so a pasted result, or several pasted together, arrived as more than one message.
