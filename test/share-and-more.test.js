@@ -17,6 +17,11 @@ test('a share names the puzzle version and, when there is one, the game version'
   assert.equal(text, 'G #12 v3 · Mon Nov 23 · 1/3 · Streak 1\n🟩\nGame version 2026.11.26.2\nhttps://x.test/?p=ex-d-0012');
 });
 
+test('a game may add a short note after the score, such as how many listens it took', () => {
+  const text = F.shareText({ game: 'G', puzzle: daily, track: 'daily', rows: [['miss', 'hit']], solved: true, attempts: 2, maxAttempts: 3, streak: 1, note: '🎧 3' });
+  assert.equal(text, 'G #12 v1 · Mon Nov 23 · 2/3 · 🎧 3 · Streak 1\n🟥🟩');
+});
+
 test('unlimited share uses its own number and never a streak; misses show X', () => {
   const text = F.shareText({ game: 'G', puzzle: { id: 'u-7', serial: 7 }, track: 'unlimited', rows: [['miss', 'miss']],
     solved: false, attempts: 2, maxAttempts: 2, streak: 9 });
@@ -64,7 +69,7 @@ test('unlimited picks prefer unsolved puzzles, honor filters, and repeat only wh
 test('the picture uses the same spoiler-free pieces as the text', () => {
   const parts = F.shareParts({ game: 'G', puzzle: daily, track: 'daily', rows: [['miss', 'bogus', 'hit']],
     solved: true, attempts: 3, maxAttempts: 3, streak: 2, url: 'https://x.test/g/?p=ex-d-0012' });
-  assert.deepEqual(parts, { game: 'G', gameVersion: null, tag: '#12 v1', when: 'Mon Nov 23', score: '3/3', solved: true, streak: 2,
+  assert.deepEqual(parts, { game: 'G', gameVersion: null, tag: '#12 v1', when: 'Mon Nov 23', score: '3/3', note: null, solved: true, streak: 2,
     rows: [['miss', 'skip', 'hit']], url: 'https://x.test/g/?p=ex-d-0012' });
   assert.ok(!JSON.stringify(parts).includes('sequence') && !JSON.stringify(parts).includes('answer'));
 });

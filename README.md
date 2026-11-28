@@ -20,6 +20,7 @@ FablesCore holds everything the games have in common, so it is improved once and
 - **A puzzle every day:** once every daily puzzle has been played, the collection plays again, in a new fixed order each time. New puzzles go ahead of repeats.
 - **Staying current:** a page left open picks up a new day or a new release by itself.
 - **Unlimited mode:** extra puzzles on their own numbers (U-1, U-2, …), chosen by concept and level or as a random mix, preferring ones the player hasn't solved. They never touch the daily streak.
+- **Music:** a music data model, a small notation engraver, a Web Audio player and pick-the-score cards, shared by the listening games (EarFables, ClapFables). See [docs/MUSIC.md](docs/MUSIC.md).
 - **Puzzle identity, difficulty, progress:** permanent IDs and serial numbers checked when a game starts, a difficulty score with a hook for real player data, and streaks and stats saved on the player's device only.
 
 The code is plain HTML, CSS and JavaScript with no frameworks and no build step.
@@ -187,6 +188,8 @@ Puzzles from a provider are checked one at a time as they load, with the same ru
 | `weeklyRamp: { from: 'YYYY-MM-DD' }` | The ramp starts on that Monday; earlier days are treated as `weeklyRamp: false`. For a game that adds the ramp after it has players |
 | `updates: false` or `{ every, idle }` | Turns off the check for a new day or release, or changes how often it looks and how long without input counts as idle (milliseconds; the defaults are five minutes and two) |
 | `archive: { days: 60 }` | Adds an **Archive** tab listing past days. A past day opens with `?archive=YYYY-MM-DD` as practice: it is recorded, but never changes the streak |
+| `levelLabels: { 1: 'Monday', … }` | Names for levels in the Unlimited picker and the kicker (`game` setting) |
+| `unlimitedGenerator: { levels, levelOf, idOf, serialOf, make }` | Unlimited puzzles made on demand by a seeded generator, without end: U-n is always `make(n)`. `levelOf(n)` must be cheap; the picker walks serials with it (passed to `Fables.start`) |
 | `unlimitedLevels: 'run'`, `runLevels: { levels: 5, perLevel: 3 }` | Unlimited levels rise with the run (solves in a row): every three solves goes up a level, and a miss starts over. Replaces the concept and level picker with a run banner, and Stats shows current and best run |
 
 The core also resumes an Unlimited puzzle that was started but not finished.
@@ -202,6 +205,7 @@ Passed to `Fables.start` alongside `render` and `check`. Each gets `{ store, rec
 | `help(ctx)` | Extra sections on Help (DataFables: class code, difficulty log, export and import, reminder) |
 | `resultNote(puzzle, { solved, track, set, screen })` | Extra lines in the result, under the verdict. Called for the finished puzzle (`screen: 'puzzle'`) and the results screen (`'results'`, where the board is not on screen, and where `puzzle` is the last part of a multi-part day) |
 | `tagRecord()` | Extra fields on every record (DataFables: the class code) |
+| `shareNote(puzzle, { track, set })` | A short note after the score in the shared text and picture (the music games: `🎧 2` listens) |
 
 ### Difficulty
 

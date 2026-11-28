@@ -13,7 +13,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (root) {
   'use strict';
 
-  const VERSION = '0.8.0';
+  const VERSION = '0.9.0';
 
   // ---------------------------------------------------------------- dates
   // Dates are ISO strings (YYYY-MM-DD). Arithmetic is done in UTC day numbers so results never
@@ -376,8 +376,9 @@
   // The puzzle provider: how the core gets puzzles. A game with all its puzzles in one bank needs
   // nothing more; a game that loads puzzles from files day by day (DataFables) supplies its own
   // provider with the same async methods.
-  function bankProvider(bank) {
+  function bankProvider(bank, generated) {
     const unlimited = bank.unlimited ?? [];
+    if (generated) return { ...bankProvider(bank), ...generatedUnlimited(bank, generated) };
     return {
       daily: async (date) => dailyFor(bank, date),
       byId: async (id) => findPuzzle(bank, id),
@@ -394,6 +395,37 @@
           if (any && !any.repeat) return { puzzle: any.puzzle, notice: `Level ${level} is used up for now, so this one is level ${any.puzzle.level}.` };
         }
         return pick ? { puzzle: pick.puzzle, notice: 'You have played every puzzle that matches, so this is a repeat.' } : null;
+      },
+    };
+  }
+
+  // Unlimited puzzles made on demand, with no end: a game whose puzzles come from a seeded
+  // generator (the music games) passes `unlimitedGenerator` to Fables.start:
+  //   { levels: [1, …], levelOf(serial), idOf(serial), serialOf(id), make(serial) }
+  // U-n is always the same puzzle. `levelOf` must be cheap: the picker walks serials with it.
+  function generatedUnlimited(bank, gen) {
+    const LIMIT = 100000;
+    const find = (level, avoid, from = 1) => {
+      for (let n = from; n < LIMIT; n++) {
+        if (level != null && gen.levelOf(n) !== level) continue;
+        if (!avoid.has(gen.idOf(n))) return n;
+      }
+      return null;
+    };
+    return {
+      async byId(id) {
+        const found = findPuzzle(bank, id);
+        if (found) return found;
+        const n = gen.serialOf(id);
+        return n ? { puzzle: gen.make(n), track: 'unlimited' } : null;
+      },
+      concepts: () => gen.concepts ?? [],
+      levels: () => gen.levels,
+      async unlimited({ level = null, mode = 'next', avoid = new Set() }) {
+        // Random mix: a random start among the next few hundred unplayed serials.
+        const from = mode === 'random' ? 1 + Math.floor(Math.random() * (avoid.size + 400)) : 1;
+        const n = find(level, avoid, from) ?? find(level, avoid);
+        return n ? { puzzle: gen.make(n) } : null;
       },
     };
   }
@@ -537,13 +569,14 @@
   const MARKS = { hit: '🟩', near: '🟨', miss: '🟥', skip: '⬜' };
 
   // The pieces of a shared result, used by both the text and the picture.
-  function shareParts({ game, puzzle, track, rows, solved, attempts, maxAttempts, streak, url, score, gameVersion }) {
+  function shareParts({ game, puzzle, track, rows, solved, attempts, maxAttempts, streak, url, score, gameVersion, note }) {
     return {
       game,
       gameVersion: gameVersion || null,
       tag: `${track === 'unlimited' ? `U-${puzzle.serial}` : `#${puzzle.serial}`} v${puzzle.puzzleVersion ?? 1}`,
       when: track === 'unlimited' ? 'Unlimited' : `${WEEKDAYS[weekday(puzzle.date)].slice(0, 3)} ${shortDate(puzzle.date)}`,
       score: score ?? (solved ? `${attempts}/${maxAttempts}` : `X/${maxAttempts}`),
+      note: note || null,
       solved: !!solved,
       streak: track === 'daily' && Number.isInteger(streak) ? streak : null,
       rows: rows.map((row) => row.map((m) => (MARKS[m] ? m : 'skip'))),
@@ -554,6 +587,7 @@
   function shareText(opts) {
     const p = shareParts(opts);
     const head = [`${p.game} ${p.tag}`, p.when, p.score];
+    if (p.note) head.push(p.note);
     if (p.streak != null) head.push(`Streak ${p.streak}`);
     const lines = [head.join(' · '), ...p.rows.map((row) => row.map((m) => MARKS[m]).join(''))];
     if (p.gameVersion) lines.push(`Game version ${p.gameVersion}`);
@@ -601,6 +635,11 @@
     c.fillStyle = parts.solved ? CARD_COLORS.hit : '#b42318';
     c.font = `700 120px ${serif}`;
     c.fillText(parts.score, 90, 360);
+    if (parts.note) {
+      c.fillStyle = '#1f2a37';
+      c.font = `500 34px ${sans}`;
+      c.fillText(parts.note, 90, 412);
+    }
     // Squares shrink to fit when a game has many tries per row.
     const longest = Math.max(1, ...parts.rows.map((row) => row.length));
     const gap = 14;
@@ -751,7 +790,7 @@
     // A game may plug in its own storage (see README, "Store adapter"); otherwise the core's.
     const store = options.store ?? createStore(game.id, undefined, options.migrations);
     const shell = mountShell(game);
-    const provider = options.provider ?? bankProvider(bank ?? {});
+    const provider = options.provider ?? bankProvider(bank ?? {}, options.unlimitedGenerator);
     const ctx = () => ({ store, records: store.records(), day, el: h });
 
     const refuse = (errors) => {
@@ -916,6 +955,7 @@
           ? { rows: states.map((s) => s.marks), score: `${solved}/${total}` }
           : { rows: rowsFor(state.marks, puzzle), attempts: used, maxAttempts: max }),
         streak: onTime ? streak : undefined, url: shareUrl(game.url, puzzle),
+        note: options.shareNote?.(last, { track, set }) ?? null,
       };
       const heading = h('h2', { class: 'fables-verdict', id: 'fables-results-heading' },
         h('span', { class: 'fables-icon', 'aria-hidden': 'true' }, { solved: '✓', some: '◐', missed: '↻' }[outcome]),
@@ -1115,8 +1155,8 @@
           }, h('option', { value: '' }, name === 'concept' ? 'Any concept' : 'Any level'),
           values.map((v) => h('option', { value: v, selected: value === v }, text(v)))));
         header = h('form', { class: 'fables-picker', onsubmit: (e) => e.preventDefault() },
-          select('concept', 'Concept', provider.concepts?.() ?? [], unlimitedFilter.concept, (v) => labels[v] ?? v),
-          select('level', 'Level', provider.levels?.() ?? [], unlimitedFilter.level, (v) => `Level ${v}`),
+          (provider.concepts?.() ?? []).length > 0 && select('concept', 'Concept', provider.concepts(), unlimitedFilter.concept, (v) => labels[v] ?? v),
+          select('level', 'Level', provider.levels?.() ?? [], unlimitedFilter.level, (v) => game.levelLabels?.[v] ?? `Level ${v}`),
           h('label', {}, h('input', {
             type: 'checkbox',
             checked: unlimitedFilter.mode === 'random',
@@ -1136,7 +1176,7 @@
         return;
       }
       const concept = current.concept ? `${labels[current.concept] ?? current.concept} · ` : '';
-      play(current, 'unlimited', `U-${current.serial} · ${concept}level ${current.level}`, [intro('unlimited'), header].filter(Boolean));
+      play(current, 'unlimited', `U-${current.serial} · ${concept}${game.levelLabels?.[current.level] ?? `level ${current.level}`}`, [intro('unlimited'), header].filter(Boolean));
     }
 
     function nextUnlimited() {
@@ -1611,6 +1651,7 @@
     // unlimited
     pickUnlimited,
     // unlimited runs and providers
+    generatedProvider: (bank, generator) => bankProvider(bank, generator),
     unlimitedRuns, levelForRun, bankProvider,
     // browser helper for games' hooks
     el: (...args) => h(...args),

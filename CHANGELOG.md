@@ -2,6 +2,13 @@
 
 Every release is a version tag (`v0.1.0`) with a section here. Games record the version they carry in `fables-core/VERSION`. A breaking change, meaning one that needs a game to change its own code, is marked **Breaking** with the steps to follow.
 
+## 0.9.0
+
+- **Music** (`fables-core/music/`, for EarFables and ClapFables, see [docs/MUSIC.md](docs/MUSIC.md)): a music data model with a canonical audible form (two pieces sound the same exactly when it matches, so a tie and a longer note count as one sound), standard-notation and beaming rules, seeded random numbers and a generate-and-check harness with the shared pick-the-score checks, a small SVG engraver (treble and one-line percussion staves), a Web Audio engine with a lookahead scheduler and the iPhone silent-switch workaround, and the pick-the-score cards with a listen counter, keyboard play, and every choice playable after the answer. Games that don't load these files are unaffected.
+- **Unlimited made on demand:** `unlimitedGenerator` ({ levels, levelOf, idOf, serialOf, make }) gives an endless Unlimited track from a seeded generator. U-n is always the same puzzle.
+- **Named levels:** `game.levelLabels` names levels in the Unlimited picker and the kicker ("Sunday capstone" rather than "Level 7"). The concept picker is left out when a game has no concepts.
+- **A note in the share:** `shareNote(puzzle, { track, set })` adds a short note after the score in the shared text and picture (the music games use it for listens: `🎧 2`).
+
 ## 0.8.0
 
 - **The Collegeville mark:** every game's header now shows the Collegeville mark, small, at the far right, linking to the Games page (`game.gamesUrl` if set). It is built into the core, so a game needs no file or code change. The game's own icon and name still lead.

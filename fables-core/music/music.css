@@ -1,0 +1,106 @@
+/* FablesCore music: the pick-the-score cards and the player. Uses the core's palette
+   (fables.css), so light and dark themes follow it. © 2026 Michael A. Heroux. MIT License. */
+
+.fm-player {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 4px 0 2px;
+}
+.fables .fm-play { min-width: 8.5rem; font-size: 1.05rem; padding: 12px 20px; }
+.fm-listens { color: var(--muted); font-size: 0.95rem; }
+.fm-volume { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.fm-volume input { width: 110px; accent-color: var(--accent); }
+.fm-hint { margin: 2px 0 10px; color: var(--muted); font-size: 0.8rem; }
+.fm-hint.is-loud { color: var(--miss); font-weight: 600; }
+.fm-prompt { margin: 12px 0 8px; font-weight: 600; }
+.fm-toggle { display: inline-flex; gap: 6px; align-items: center; margin: 0 0 8px; color: var(--muted); font-size: 0.9rem; }
+
+.fm-cards {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.fm-cards.fm-short .fm-svg { max-width: 640px; }
+.fm-card {
+  position: relative;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color 0.15s, background 0.15s;
+}
+.fm-choose {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 10px 6px 8px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: calc(var(--radius) - 2px);
+}
+.fm-choose:disabled { cursor: default; }
+.fm-choose:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.fm-num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.fm-svg { flex: 1; min-width: 0; color: var(--ink); }
+.fm-svg svg { display: block; width: 100%; height: auto; }
+.fm-card:hover:not(.is-tried):not(.is-answer) { border-color: var(--muted); }
+.fm-card.is-selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.fm-card.is-selected .fm-num { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.fm-card.is-tried { border-color: var(--lost); background: var(--lost-soft); }
+.fm-card.is-tried .fm-svg { opacity: 0.55; }
+.fm-card.is-answer { border-color: var(--good); background: var(--good-soft); border-width: 3px; }
+.fm-badge {
+  display: inline-block;
+  margin: 0 10px 8px 46px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.fm-badge.ok { background: var(--good); color: var(--paper); }
+.fm-badge.no { background: var(--lost); color: var(--paper); }
+.fm-after { margin: 0 10px 10px 46px; }
+.fm-hear {
+  border: 1.5px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.fm-hear:hover { border-color: var(--accent); }
+.fm-actions {
+  position: sticky;
+  bottom: 0;
+  padding: 10px 0 max(10px, env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent, var(--paper) 30%);
+}
+.fables .fm-check { width: 100%; font-size: 1.05rem; padding: 12px; }
+.fables .fm-check:disabled { opacity: 0.55; cursor: default; }
+
+/* The note playing now, when the player has asked to see it (after answering). */
+.fm-svg .fm-now { color: var(--accent); fill: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .fm-card { transition: none; }
+}
