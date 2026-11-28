@@ -25,6 +25,16 @@
       "repo": "Collegeville/DataFables",
       "coreDir": "site/fables-core",
       "active": true
+    },
+    {
+      "repo": "Collegeville/EarFables",
+      "coreDir": "fables-core",
+      "active": true
+    },
+    {
+      "repo": "Collegeville/ClapFables",
+      "coreDir": "fables-core",
+      "active": true
     }
   ]
 }
