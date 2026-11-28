@@ -17,7 +17,7 @@ test('VERSION file, script version and changelog agree', () => {
 });
 
 test('the example game vendors an exact copy of the core', () => {
-  for (const file of readdirSync(join(root, 'fables-core'))) {
+  for (const file of readdirSync(join(root, 'fables-core'), { recursive: true }).filter((f) => f.includes('.') || f === 'VERSION')) {
     assert.equal(readFileSync(join(root, 'example/fables-core', file), 'utf8'), readFileSync(join(root, 'fables-core', file), 'utf8'),
       `example/fables-core/${file} is out of date; run: npm run vendor-example`);
   }
