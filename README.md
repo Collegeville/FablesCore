@@ -1,6 +1,6 @@
 # FablesCore
 
-The shared framework for the Fables games: small daily puzzle games for the skills that matter more as AI changes how software is made. Four of them keep people sharp at work AI now does quickly, so they can still judge it. UDXFables trains what grows in importance as AI automates the mechanics: user and developer experience, shaped by people working with AI, for the people and AI agents who build and use a product. Five games are live, and all of them run on FablesCore:
+The shared framework for the Fables games: small daily puzzle games for the skills that matter more as AI changes how software is made. Four of them keep people sharp at work AI now does quickly, so they can still judge it. UDXFables trains what grows in importance as AI automates the mechanics: user and developer experience, shaped by people working with AI, for the people and AI agents who build and use a product. EarFables and ClapFables train the musician's ear and eye, so people can check the music AI now writes and transcribes. Seven games are live, and all of them run on FablesCore:
 
 | Game | What it asks | For |
 | --- | --- | --- |
@@ -9,6 +9,8 @@ The shared framework for the Fables games: small daily puzzle games for the skil
 | [ScaleFables](https://collegeville.github.io/ScaleFables/) | How does it grow, and how does it speed up? | Students past CS1 and anyone who reasons about performance |
 | [TestFables](https://collegeville.github.io/TestFables/) | When can you trust a green checkmark? | Undergraduate students who know basic programming |
 | [UDXFables](https://collegeville.github.io/UDXFables/) | Who is it for, and what do they need right now? For the people and agents who build and use a product. | Anyone who builds software, tools, or communities |
+| [EarFables](https://collegeville.github.io/EarFables/) | Hear the tune, find the score: pick the score that matches a short melody. | Music students and anyone learning to read music |
+| [ClapFables](https://collegeville.github.io/ClapFables/) | Hear the rhythm, find the score: pick the written rhythm that matches two clapped bars. | Music students and anyone learning to read rhythm |
 
 FablesCore holds everything the games have in common, so it is improved once and every game gets it:
 
@@ -215,7 +217,7 @@ Passed to `Fables.start` alongside `render` and `check`. Each gets `{ store, rec
 
 - Each game is a topic word plus Fables in CamelCase: DataFables, ScaleFables. The repo name, the page address (collegeville.github.io/ScaleFables) and the on-screen title all match exactly.
 - Check a new name for collisions before using it.
-- Every game repo gets the GitHub topic **fables-game**, and this repo gets **fables-core**. Add a subject topic too, such as `data`, `code`, `scaling`, `testing` or `experience`. Then [this search](https://github.com/orgs/Collegeville/repositories?q=topic%3Afables-game) lists the whole family.
+- Every game repo gets the GitHub topic **fables-game**, and this repo gets **fables-core**. Add a subject topic too, such as `data`, `code`, `scaling`, `testing`, `experience` or `music`. Then [this search](https://github.com/orgs/Collegeville/repositories?q=topic%3Afables-game) lists the whole family.
 - All Fables repos live side by side in the Collegeville organization. Revisit the flat layout only if it passes about fifty repos.
 
 ## Icons
